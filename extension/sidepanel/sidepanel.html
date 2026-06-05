@@ -12,7 +12,6 @@
   <header class="header">
     <div class="logo">
       <span class="logo-icon">
-        <!-- Magnifying glass -->
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
@@ -20,8 +19,13 @@
       <span class="logo-text">TermsLens</span>
     </div>
     <div class="header-actions">
+      <button id="history-btn" class="icon-btn" title="View history" aria-label="History">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+      </button>
       <a href="#" id="open-options" class="icon-btn" title="Settings" aria-label="Settings">
-        <!-- Gear -->
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="3"/>
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
@@ -40,7 +44,7 @@
         One-time setup
       </div>
       <h2>Connect your AI key</h2>
-      <p class="sub">TermsLens uses Google Gemini to analyze policies. Paste your free API key below to get started.</p>
+      <p class="sub">TermsLens reads legal policies and translates them into plain English using Google Gemini. Paste your free API key below to get started.</p>
 
       <div class="steps-card">
         <div class="step-item">
@@ -60,8 +64,7 @@
       <div class="key-field">
         <label for="setup-key-input">Gemini API Key</label>
         <div class="key-input-row">
-          <input type="password" id="setup-key-input"
-                 placeholder="AIzaSy…" autocomplete="off" spellcheck="false"/>
+          <input type="password" id="setup-key-input" placeholder="AIzaSy…" autocomplete="off" spellcheck="false"/>
           <button id="setup-save-btn" class="btn btn-primary">Save key</button>
         </div>
       </div>
@@ -69,7 +72,7 @@
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
         </svg>
-        Stored locally on your device. Never sent anywhere except Google's API.
+        Stored only on your device. Never sent anywhere except Google's API.
       </p>
       <div id="setup-error" class="inline-error hidden"></div>
     </div>
@@ -89,7 +92,7 @@
       </div>
 
       <h2>Ready to analyze</h2>
-      <p class="sub">Detect Terms of Service and Privacy Policy links on this page, fetch their content, and get an AI-powered privacy breakdown.</p>
+      <p class="sub">TermsLens will find the Terms of Service and Privacy Policy on this page, read them for you, and tell you what actually matters — in plain English.</p>
 
       <div class="feature-list">
         <div class="feature-item">
@@ -98,23 +101,23 @@
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
           </span>
-          <span>Auto-detect policy links</span>
+          <span>Finds policy links automatically</span>
         </div>
         <div class="feature-item">
           <span class="feature-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
             </svg>
           </span>
-          <span>Extract clean legal text</span>
+          <span>Reads the legal text so you don't have to</span>
         </div>
         <div class="feature-item">
           <span class="feature-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><circle cx="18" cy="6" r="3"/>
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
             </svg>
           </span>
-          <span>AI analysis via Gemini</span>
+          <span>Flags anything that could affect you</span>
         </div>
         <div class="feature-item">
           <span class="feature-icon">
@@ -122,7 +125,7 @@
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
             </svg>
           </span>
-          <span>Privacy score + red flags</span>
+          <span>Gives you a privacy score out of 10</span>
         </div>
       </div>
 
@@ -147,7 +150,7 @@
 
   <!-- ── SCREEN: No links ───────────────────────────────────────────────── -->
   <div id="screen-no-links" class="screen hidden">
-    <div class="empty-wrap">
+    <div class="state-wrap">
       <div class="state-icon-wrap state-icon-neutral">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -155,8 +158,8 @@
         </svg>
       </div>
       <h2>No policies found</h2>
-      <p>No Terms of Service or Privacy Policy links were detected on this page.</p>
-      <p class="hint">Try visiting the site's homepage or footer, then re-analyze.</p>
+      <p>We couldn't find a Terms of Service or Privacy Policy on this page.</p>
+      <p class="hint">Try the site's homepage or scroll to the footer — policy links are usually there.</p>
       <button id="no-links-retry-btn" class="btn btn-secondary">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/>
@@ -168,7 +171,7 @@
 
   <!-- ── SCREEN: Error ──────────────────────────────────────────────────── -->
   <div id="screen-error" class="screen hidden">
-    <div class="error-wrap">
+    <div class="state-wrap">
       <div class="state-icon-wrap state-icon-danger">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"/>
@@ -199,6 +202,7 @@
   <!-- ── SCREEN: Results ────────────────────────────────────────────────── -->
   <div id="screen-results" class="screen hidden">
 
+    <!-- ① HERO: score + verdict — most important, seen first -->
     <div class="results-hero">
       <div class="domain-row">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -207,6 +211,7 @@
         </svg>
         <span id="result-domain" class="domain-text"></span>
       </div>
+
       <div class="score-row">
         <div id="score-ring" class="score-ring">
           <span id="score-number" class="score-num"></span>
@@ -215,64 +220,99 @@
         <div class="score-meta">
           <div id="score-label" class="score-label"></div>
           <div class="score-caption">Privacy Score</div>
+          <!-- plain-English verdict filled by JS -->
+          <div id="score-verdict" class="score-verdict"></div>
         </div>
       </div>
     </div>
 
-    <div id="docs-analysed" class="docs-row"></div>
-    <div id="fetch-warnings" class="fetch-warnings hidden"></div>
-
+    <!-- ② RECOMMENDATION — what the user should actually do -->
     <div class="results-body">
 
-      <section class="r-section">
+      <section class="r-section r-section--action">
         <h3 class="r-title">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          Summary
-        </h3>
-        <p id="result-summary" class="r-text"></p>
-      </section>
-
-      <section class="r-section">
-        <h3 class="r-title">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-          What they collect
-        </h3>
-        <ul id="result-collected" class="tag-list"></ul>
-      </section>
-
-      <section class="r-section">
-        <h3 class="r-title">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          Who they share with
-        </h3>
-        <ul id="result-shared" class="tag-list"></ul>
-      </section>
-
-      <section class="r-section">
-        <h3 class="r-title r-title--danger">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          Red flags
-        </h3>
-        <ul id="result-flags" class="flag-list"></ul>
-      </section>
-
-      <section class="r-section">
-        <h3 class="r-title">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          Your rights
-        </h3>
-        <ul id="result-rights" class="rights-list"></ul>
-      </section>
-
-      <section class="r-section">
-        <h3 class="r-title">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          Recommendation
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          What should I do?
         </h3>
         <p id="result-recommendation" class="recommendation"></p>
       </section>
 
-    </div>
+      <!-- ③ RED FLAGS — all of them, plain English, high-visibility -->
+      <section class="r-section" id="section-flags">
+        <h3 class="r-title r-title--danger">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          Concerns you should know about
+        </h3>
+        <p class="section-intro" id="flags-intro"></p>
+        <ul id="result-flags" class="flag-list"></ul>
+      </section>
+
+      <!-- ④ SUMMARY — expanded plain-English overview -->
+      <section class="r-section">
+        <h3 class="r-title">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          In plain English — what does this policy say?
+        </h3>
+        <p id="result-summary" class="r-text"></p>
+      </section>
+
+      <!-- ⑤ DATA COLLECTED + SHARED — two columns where space allows -->
+      <section class="r-section r-section--two-col">
+        <div class="two-col-block">
+          <h3 class="r-title">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+            </svg>
+            Information they collect about you
+          </h3>
+          <ul id="result-collected" class="tag-list"></ul>
+        </div>
+        <div class="two-col-block">
+          <h3 class="r-title">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            Who they share it with
+          </h3>
+          <ul id="result-shared" class="tag-list"></ul>
+        </div>
+      </section>
+
+      <!-- ⑥ YOUR RIGHTS -->
+      <section class="r-section">
+        <h3 class="r-title">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          What you are allowed to do
+        </h3>
+        <p class="section-intro">These are the rights you have under this policy — things you can ask the company to do:</p>
+        <ul id="result-rights" class="rights-list"></ul>
+      </section>
+
+      <!-- ⑦ DOCS ANALYSED + WARNINGS — least important, at the bottom -->
+      <section class="r-section r-section--meta">
+        <h3 class="r-title r-title--muted">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          Documents analyzed
+        </h3>
+        <div id="docs-analysed" class="docs-row"></div>
+        <div id="fetch-warnings" class="fetch-warnings hidden"></div>
+      </section>
+
+    </div><!-- /results-body -->
 
     <div class="results-footer">
       <button id="reanalyze-btn" class="btn btn-ghost btn-sm">
@@ -283,6 +323,34 @@
       </button>
     </div>
 
+  </div><!-- /screen-results -->
+
+  <!-- ── SCREEN: History ───────────────────────────────────────────────── -->
+  <div id="screen-history" class="screen hidden">
+    <div class="history-header">
+      <button id="history-back-btn" class="icon-btn" title="Back" aria-label="Back">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+        </svg>
+      </button>
+      <span class="history-title">Analysis History</span>
+      <button id="history-clear-btn" class="btn-text-danger" title="Clear all history">Clear all</button>
+    </div>
+
+    <!-- Empty state -->
+    <div id="history-empty" class="history-empty hidden">
+      <div class="state-icon-wrap state-icon-neutral">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+      </div>
+      <h2>No history yet</h2>
+      <p>Analyzed sites will appear here so you can quickly revisit results without re-analyzing.</p>
+    </div>
+
+    <!-- History list -->
+    <ul id="history-list" class="history-list"></ul>
   </div>
 
   <script src="sidepanel.js"></script>
