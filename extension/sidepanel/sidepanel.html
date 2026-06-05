@@ -25,12 +25,12 @@
           <polyline points="12 6 12 12 16 14"/>
         </svg>
       </button>
-      <a href="#" id="open-options" class="icon-btn" title="Settings" aria-label="Settings">
+      <button id="open-settings" class="icon-btn" title="Settings" aria-label="Settings">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="3"/>
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
         </svg>
-      </a>
+      </button>
     </div>
   </header>
 
@@ -324,6 +324,99 @@
     </div>
 
   </div><!-- /screen-results -->
+
+  <!-- ── SCREEN: Settings (inline, no external page) ──────────────────── -->
+  <div id="screen-settings" class="screen hidden">
+    <div class="sub-header">
+      <button id="settings-back-btn" class="icon-btn" title="Back" aria-label="Back">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+        </svg>
+      </button>
+      <span class="sub-header-title">Settings</span>
+    </div>
+
+    <div class="settings-body">
+
+      <!-- API Key card -->
+      <div class="settings-card">
+        <div class="settings-card-head">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+          </svg>
+          <div>
+            <div class="settings-card-title">Gemini API Key</div>
+            <div class="settings-card-desc">Used to analyze policy text with AI. Stored only on this device.</div>
+          </div>
+        </div>
+
+        <!-- Key status banner -->
+        <div id="settings-status-row" class="settings-status-row">
+          <span id="settings-status-dot" class="settings-status-dot"></span>
+          <span id="settings-status-text" class="settings-status-text">Checking…</span>
+        </div>
+
+        <!-- Input -->
+        <div class="settings-field">
+          <label for="settings-key-input">API Key</label>
+          <div class="settings-input-row">
+            <input type="password" id="settings-key-input"
+                   placeholder="Paste your Gemini API key (AIzaSy…)"
+                   autocomplete="off" spellcheck="false" maxlength="200"/>
+            <button id="settings-toggle-vis" class="icon-btn settings-vis-btn" title="Show/hide key" aria-label="Toggle visibility">
+              <svg id="settings-eye-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
+          <p class="settings-hint">
+            Get a free key at <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a> → Get API Key → Create API Key
+          </p>
+        </div>
+
+        <!-- Actions -->
+        <div class="settings-actions">
+          <button id="settings-save-btn" class="btn btn-primary">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            Save key
+          </button>
+          <button id="settings-remove-btn" class="btn btn-danger-outline">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6"/><path d="M14 11v6"/>
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+            </svg>
+            Remove key
+          </button>
+        </div>
+
+        <!-- Feedback toast -->
+        <div id="settings-feedback" class="settings-feedback hidden"></div>
+      </div>
+
+      <!-- About card -->
+      <div class="settings-card settings-card--about">
+        <div class="settings-card-head">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <div>
+            <div class="settings-card-title">About TermsLens</div>
+          </div>
+        </div>
+        <div class="settings-about-grid">
+          <div class="settings-about-row"><span>Version</span><span>1.1.0</span></div>
+          <div class="settings-about-row"><span>AI Model</span><span>Gemini 2.0 Flash</span></div>
+          <div class="settings-about-row"><span>Key storage</span><span>Device only (chrome.storage.local)</span></div>
+          <div class="settings-about-row"><span>Data sent to</span><span>Google Gemini API only</span></div>
+        </div>
+      </div>
+
+    </div><!-- /settings-body -->
+  </div>
 
   <!-- ── SCREEN: History ───────────────────────────────────────────────── -->
   <div id="screen-history" class="screen hidden">

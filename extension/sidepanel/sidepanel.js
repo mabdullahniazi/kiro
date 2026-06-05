@@ -5,7 +5,7 @@
  */
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const SCREENS = ['setup', 'idle', 'loading', 'no-links', 'error', 'results', 'history'];
+const SCREENS = ['setup', 'idle', 'loading', 'no-links', 'error', 'results', 'history', 'settings'];
 const HISTORY_KEY    = 'termslens_history';
 const HISTORY_MAX    = 50;   // max entries stored
 
@@ -31,10 +31,10 @@ const LOADING_STEPS = [
 ];
 
 // ─── State ────────────────────────────────────────────────────────────────────
-let loadingTimer     = null;
-let loadingIdx       = 0;
-let lastResultData   = null;   // holds the last successful analysis so history can save it
-let screenBeforeHist = 'idle'; // screen to return to when closing history
+let loadingTimer       = null;
+let loadingIdx         = 0;
+let lastResultData     = null;
+let screenBeforeSecond = 'idle'; // screen to return to from history/settings
 
 // ─── DOM helpers ──────────────────────────────────────────────────────────────
 const $   = id => document.getElementById(id);
@@ -496,13 +496,6 @@ async function updateIdleDomain() {
   $('idle-domain').textContent = host || 'Current page';
 }
 
-// ─── Options page ─────────────────────────────────────────────────────────────
-function openOptions() {
-  chrome.runtime.openOptionsPage
-    ? chrome.runtime.openOptionsPage()
-    : chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html') });
-}
-
 // ─── Init ─────────────────────────────────────────────────────────────────────
 async function init() {
   await updateIdleDomain();
@@ -514,42 +507,133 @@ async function init() {
   }
 }
 
-// ─── History: open / close / clear ───────────────────────────────────────────
-async function openHistory() {
-  // Remember what screen we're coming from
+// ─── Settings screen ──────────────────────────────────────────────────────────
+async function updateSettingsStatus() {
+  const key = await storageGet('geminiApiKey');
+  const hasKey = !!(key && key.trim());
+  const dot  = $('settings-status-dot');
+  const text = $('settings-status-text');
+  if (dot)  dot.className  = `settings-status-dot ${hasKey ? 'active' : 'inactive'}`;
+  if (text) text.textContent = hasKey ? '✓ API key is configured' : 'No API key configured';
+}
+
+function showSettingsFeedback(msg, type) {
+  const el = $('settings-feedback');
+  if (!el) return;
+  el.textContent = msg;
+  el.className   = `settings-feedback ${type}`;
+  el.classList.remove('hidden');
+  clearTimeout(showSettingsFeedback._t);
+  showSettingsFeedback._t = setTimeout(() => el.classList.add('hidden'), 4000);
+}
+
+async function openSettings() {
+  // Remember the screen we came from
   for (const s of SCREENS) {
     const el = $(`screen-${s}`);
-    if (el && !el.classList.contains('hidden')) { screenBeforeHist = s; break; }
+    if (el && !el.classList.contains('hidden')) { screenBeforeSecond = s; break; }
+  }
+  // Reset input
+  const inp = $('settings-key-input');
+  if (inp) { inp.value = ''; inp.type = 'password'; }
+  const eye = $('settings-eye-icon');
+  if (eye) eye.innerHTML = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;
+  $('settings-feedback')?.classList.add('hidden');
+  await updateSettingsStatus();
+  showScreen('settings');
+}
+
+function closeSettings() {
+  showScreen(screenBeforeSecond || 'idle');
+}
+
+async function settingsSaveKey() {
+  const key = ($('settings-key-input')?.value || '').trim();
+  if (!key)             { showSettingsFeedback('Please enter an API key.', 'error'); return; }
+  if (key.length > 200) { showSettingsFeedback('Key too long (max 200 chars).', 'error'); return; }
+
+  try {
+    const res = await sendMsg({ action: 'SAVE_API_KEY', apiKey: key });
+    if (!res?.success) { showSettingsFeedback(res?.error || 'Could not save key.', 'error'); return; }
+    $('settings-key-input').value = '';
+    $('settings-key-input').type  = 'password';
+    await updateSettingsStatus();
+    showSettingsFeedback('✓ API key saved.', 'success');
+  } catch (err) {
+    showSettingsFeedback(err.message, 'error');
+  }
+}
+
+async function settingsRemoveKey() {
+  if (!confirm('Remove your stored API key? You will need to re-enter it to use TermsLens.')) return;
+  try {
+    await sendMsg({ action: 'CLEAR_API_KEY' });
+    await updateSettingsStatus();
+    showSettingsFeedback('API key removed.', 'success');
+  } catch (err) {
+    showSettingsFeedback(err.message, 'error');
+  }
+}
+
+// ─── History: open / close / clear ────────────────────────────────────────────
+async function openHistory() {
+  for (const s of SCREENS) {
+    const el = $(`screen-${s}`);
+    if (el && !el.classList.contains('hidden')) { screenBeforeSecond = s; break; }
   }
   await renderHistoryScreen();
   showScreen('history');
 }
 
 function closeHistory() {
-  showScreen(screenBeforeHist || 'idle');
+  showScreen(screenBeforeSecond || 'idle');
 }
 
 // ─── Event wiring ─────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  // Analysis
+  // ── Analysis ──────────────────────────────────────────────────────────────
   $('analyze-btn')        ?.addEventListener('click', startAnalysis);
   $('reanalyze-btn')      ?.addEventListener('click', startAnalysis);
   $('no-links-retry-btn') ?.addEventListener('click', startAnalysis);
   $('error-retry-btn')    ?.addEventListener('click', startAnalysis);
 
-  // Setup
+  // ── Setup screen ──────────────────────────────────────────────────────────
   $('setup-save-btn') ?.addEventListener('click', saveSetupKey);
   $('setup-key-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') saveSetupKey(); });
 
-  // Settings
-  $('open-options')      ?.addEventListener('click', e => { e.preventDefault(); openOptions(); });
-  $('error-settings-btn')?.addEventListener('click', openOptions);
+  // ── Settings: open from header gear + error screen button ─────────────────
+  $('open-settings')     ?.addEventListener('click', openSettings);
+  $('error-settings-btn')?.addEventListener('click', openSettings);
 
-  // History
-  $('history-btn')?.addEventListener('click', openHistory);
+  // Settings: back button
+  $('settings-back-btn')?.addEventListener('click', closeSettings);
 
+  // Settings: save key
+  $('settings-save-btn')  ?.addEventListener('click', settingsSaveKey);
+  $('settings-key-input') ?.addEventListener('keydown', e => { if (e.key === 'Enter') settingsSaveKey(); });
+
+  // Settings: remove key
+  $('settings-remove-btn')?.addEventListener('click', settingsRemoveKey);
+
+  // Settings: toggle password visibility
+  $('settings-toggle-vis')?.addEventListener('click', () => {
+    const inp = $('settings-key-input');
+    const eye = $('settings-eye-icon');
+    if (!inp) return;
+    const isHidden = inp.type === 'password';
+    inp.type = isHidden ? 'text' : 'password';
+    if (eye) {
+      eye.innerHTML = isHidden
+        // eye-off: slash through eye
+        ? `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>`
+        // eye: open
+        : `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;
+    }
+  });
+
+  // ── History ───────────────────────────────────────────────────────────────
+  $('history-btn')     ?.addEventListener('click', openHistory);
   $('history-back-btn')?.addEventListener('click', closeHistory);
-
   $('history-clear-btn')?.addEventListener('click', async () => {
     if (!confirm('Clear all saved history? This cannot be undone.')) return;
     await historyClearAll();
