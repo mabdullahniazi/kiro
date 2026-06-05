@@ -1,7 +1,6 @@
 /**
  * TermsLens Side Panel Script
  * Handles all screens: setup, idle, loading, no-links, error, results.
- * Includes full debug log panel.
  */
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -29,12 +28,11 @@ const LOADING_STEPS = [
 ];
 
 // ─── State ────────────────────────────────────────────────────────────────────
-let debugEntries  = [];
-let loadingTimer  = null;
-let loadingIdx    = 0;
+let loadingTimer = null;
+let loadingIdx   = 0;
 
 // ─── DOM helpers ──────────────────────────────────────────────────────────────
-const $  = id => document.getElementById(id);
+const $   = id => document.getElementById(id);
 const esc = v =>
   String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
                  .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
@@ -78,58 +76,27 @@ function stopLoading() {
   loadingTimer = null;
 }
 
-// ─── Step tracker (shown during loading) ──────────────────────────────────────
-const STEP_ICONS = { ok: '✅', warn: '⚠️', error: '❌', info: '⏳' };
-
+// ─── Step tracker (live during loading) ──────────────────────────────────────
 function renderStepTracker(entries = []) {
   const el = $('step-tracker');
   if (!el) return;
   el.innerHTML = '';
 
-  // Show latest entry per step
+  // One row per step, showing the latest entry for that step
   const latest = new Map();
   for (const e of entries) latest.set(e.step, e);
 
   for (const e of latest.values()) {
+    const icon = e.status === 'ok' ? '✓' : e.status === 'error' ? '✕' : e.status === 'warn' ? '!' : '·';
     const row = document.createElement('div');
-    row.className = 'step-row';
+    row.className = `step-row step-row-${e.status || 'info'}`;
     row.innerHTML = `
-      <span class="s-icon">${STEP_ICONS[e.status] ?? 'ℹ️'}</span>
+      <span class="s-icon s-icon-${e.status || 'info'}">${icon}</span>
       <span class="s-label">${esc(e.step)}</span>
       <span class="s-msg">${esc(e.message)}</span>
     `;
     el.appendChild(row);
   }
-}
-
-// ─── Debug log panel ──────────────────────────────────────────────────────────
-function renderDebugLog(entries = []) {
-  debugEntries = Array.isArray(entries) ? entries : [];
-  const container = $('debug-entries');
-  if (!container) return;
-  container.innerHTML = '';
-  const t0 = debugEntries[0]?.ts ?? 0;
-  for (const e of debugEntries) {
-    container.appendChild(buildDebugRow(e, t0));
-  }
-  container.scrollTop = container.scrollHeight;
-}
-
-function buildDebugRow(e, t0) {
-  const row = document.createElement('div');
-  row.className = `debug-entry debug-entry-${e.status || 'info'}`;
-  const elapsed = e.ts && t0 ? `+${e.ts - t0}ms` : '';
-  const detail = e.detail
-    ? `<pre>${esc(typeof e.detail === 'string' ? e.detail : JSON.stringify(e.detail, null, 2))}</pre>`
-    : '';
-  row.innerHTML = `
-    <span class="debug-status">${esc(e.status ?? 'info')}</span>
-    <span class="debug-step">${esc(e.step ?? '')}</span>
-    <span class="debug-message">${esc(e.message ?? '')}</span>
-    <span class="debug-time">${esc(elapsed)}</span>
-    ${detail}
-  `;
-  return row;
 }
 
 // ─── Score helpers ────────────────────────────────────────────────────────────
@@ -140,7 +107,7 @@ function scoreClass(s) {
   return 'score-high';
 }
 
-// ─── Results rendering ────────────────────────────────────────────────────────
+// ─── Result section rendering ─────────────────────────────────────────────────
 function renderTagList(id, items, emptyText) {
   const el = $(id);
   if (!el) return;
@@ -230,16 +197,16 @@ function renderResults(data) {
   const score     = Number.isFinite(scoreData.score) ? scoreData.score : 0;
   const cls       = scoreClass(score);
 
-  $('result-domain').textContent = data.domain || 'Current site';
-  $('score-ring').className    = `score-ring ${cls}`;
-  $('score-number').textContent = String(score);
-  $('score-label').textContent  = scoreData.label || 'Unknown';
-  $('score-label').className    = `score-label ${cls}`;
+  $('result-domain').textContent  = data.domain || 'Current site';
+  $('score-ring').className       = `score-ring ${cls}`;
+  $('score-number').textContent   = String(score);
+  $('score-label').textContent    = scoreData.label || 'Unknown';
+  $('score-label').className      = `score-label ${cls}`;
 
   renderDocs(data.linksFound);
   renderWarnings(data.failures);
 
-  $('result-summary').textContent = analysis.summary || 'No summary returned.';
+  $('result-summary').textContent        = analysis.summary || 'No summary returned.';
   renderTagList('result-collected', analysis.dataCollected,  'None detected');
   renderTagList('result-shared',    analysis.dataSharedWith, 'None detected');
   renderFlags(data.redFlags);
@@ -257,7 +224,7 @@ function showError(code, detail) {
   showScreen('error');
 }
 
-// ─── Setup screen helpers ─────────────────────────────────────────────────────
+// ─── Setup helpers ────────────────────────────────────────────────────────────
 function setSetupError(msg) {
   const el = $('setup-error');
   if (!el) return;
@@ -265,9 +232,8 @@ function setSetupError(msg) {
   el.classList.toggle('hidden', !msg);
 }
 
-// ─── Core: run analysis ───────────────────────────────────────────────────────
+// ─── Run analysis ─────────────────────────────────────────────────────────────
 async function startAnalysis() {
-  renderDebugLog([]);
   showScreen('loading');
   startLoading();
 
@@ -280,8 +246,7 @@ async function startAnalysis() {
       return;
     }
 
-    // Populate debug log + step tracker with pipeline data
-    renderDebugLog(response.debugLog || []);
+    // Show step tracker with pipeline stages
     renderStepTracker(response.debugLog || []);
 
     if (!response.success) {
@@ -295,17 +260,16 @@ async function startAnalysis() {
     renderResults(response);
   } catch (err) {
     stopLoading();
-    renderDebugLog([{ step: 'sidepanel', status: 'error', message: err.message, ts: Date.now() }]);
     showError('UNEXPECTED_ERROR', err.message);
   }
 }
 
-// ─── Setup: save API key ──────────────────────────────────────────────────────
+// ─── Setup: save key ──────────────────────────────────────────────────────────
 async function saveSetupKey() {
   setSetupError('');
   const key = ($('setup-key-input')?.value || '').trim();
 
-  if (!key)          { setSetupError('Please enter your Gemini API key.'); return; }
+  if (!key)             { setSetupError('Please enter your Gemini API key.'); return; }
   if (key.length > 200) { setSetupError('Key too long (max 200 chars).'); return; }
 
   try {
@@ -347,23 +311,16 @@ async function init() {
 
 // ─── Event wiring ─────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  // Analysis triggers
-  $('analyze-btn')       ?.addEventListener('click', startAnalysis);
-  $('reanalyze-btn')     ?.addEventListener('click', startAnalysis);
-  $('no-links-retry-btn')?.addEventListener('click', startAnalysis);
-  $('error-retry-btn')   ?.addEventListener('click', startAnalysis);
+  $('analyze-btn')        ?.addEventListener('click', startAnalysis);
+  $('reanalyze-btn')      ?.addEventListener('click', startAnalysis);
+  $('no-links-retry-btn') ?.addEventListener('click', startAnalysis);
+  $('error-retry-btn')    ?.addEventListener('click', startAnalysis);
 
-  // Setup
-  $('setup-save-btn')?.addEventListener('click', saveSetupKey);
+  $('setup-save-btn') ?.addEventListener('click', saveSetupKey);
   $('setup-key-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') saveSetupKey(); });
 
-  // Settings
-  $('open-options')?.addEventListener('click', e => { e.preventDefault(); openOptions(); });
+  $('open-options')      ?.addEventListener('click', e => { e.preventDefault(); openOptions(); });
   $('error-settings-btn')?.addEventListener('click', openOptions);
-
-  // Debug panel
-  $('toggle-debug-btn')?.addEventListener('click', () => $('debug-panel')?.classList.toggle('hidden'));
-  $('clear-debug-btn')  ?.addEventListener('click', () => renderDebugLog([]));
 
   init();
 });

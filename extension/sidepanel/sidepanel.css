@@ -365,7 +365,21 @@ a:hover { text-decoration: underline; }
 }
 .step-row:last-child { border-bottom: none; }
 
-.step-row .s-icon { font-size: 13px; }
+.step-row .s-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.s-icon-ok    { background: var(--green-light); color: var(--green); }
+.s-icon-error { background: var(--red-light);   color: var(--red); }
+.s-icon-warn  { background: var(--amber-light);  color: var(--amber); }
+.s-icon-info  { background: var(--surface);      color: var(--text-3); }
 .step-row .s-label { font-weight: 600; color: var(--text); }
 .step-row .s-msg {
   grid-column: 2;
@@ -376,23 +390,24 @@ a:hover { text-decoration: underline; }
   white-space: nowrap;
 }
 
+/* ── Shared state icon ─────────────────────────────────────────────── */
+.state-icon-wrap {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+}
+.state-icon-neutral { background: var(--surface); color: var(--text-3); }
+.state-icon-danger  { background: var(--red-light); color: var(--red); }
+
 /* ── Empty / No links ──────────────────────────────────────────────── */
 .empty-wrap {
   max-width: 440px;
   margin: 0 auto;
   text-align: center;
-}
-
-.empty-icon-wrap {
-  width: 56px;
-  height: 56px;
-  background: var(--surface);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 26px;
-  margin: 0 auto 16px;
 }
 
 .empty-wrap h2 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
@@ -404,18 +419,6 @@ a:hover { text-decoration: underline; }
   max-width: 440px;
   margin: 0 auto;
   text-align: center;
-}
-
-.error-icon-wrap {
-  width: 56px;
-  height: 56px;
-  background: var(--red-light);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 26px;
-  margin: 0 auto 16px;
 }
 
 .error-wrap h2 { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
@@ -725,92 +728,18 @@ a:hover { text-decoration: underline; }
 .btn-large { padding: 11px 20px; font-size: 14px; }
 .btn-sm    { padding: 6px 12px; font-size: 12px; }
 
-/* ── Debug panel ────────────────────────────────────────────────────── */
-.debug-panel {
-  position: sticky;
-  bottom: 0;
-  z-index: 30;
-  max-height: 240px;
-  background: #1e1e2e;
-  border-top: 2px solid #313244;
-  box-shadow: 0 -8px 24px rgba(0,0,0,.15);
-  display: flex;
-  flex-direction: column;
-}
-
-.debug-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 7px 12px;
-  background: #181825;
-  border-bottom: 1px solid #313244;
-  font-size: 11px;
-  font-weight: 700;
-  color: #89b4fa;
-  text-transform: uppercase;
-  letter-spacing: .5px;
-  flex-shrink: 0;
-}
-
-.debug-clear-btn {
-  padding: 3px 9px;
-  border: 1px solid #45475a;
-  border-radius: 4px;
-  background: #313244;
-  color: #cdd6f4;
-  font-size: 10px;
-  cursor: pointer;
-  transition: background var(--transition);
-}
-.debug-clear-btn:hover { background: #45475a; }
-
-.debug-entries {
-  overflow-y: auto;
-  flex: 1;
-  padding: 4px 0;
-  font: 10.5px/1.45 'Cascadia Code', 'Fira Code', Consolas, Monaco, monospace;
-}
-
-.debug-entry {
-  display: grid;
-  grid-template-columns: 46px 72px 1fr 52px;
-  gap: 6px;
-  padding: 4px 10px;
-  border-bottom: 1px solid #181825;
-  color: #6c7086;
-  align-items: baseline;
-}
-.debug-entry:hover { background: #181825; }
-
-.debug-status { font-weight: 700; text-transform: uppercase; font-size: 9.5px; }
-.debug-step   { color: #89b4fa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.debug-message{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.debug-time   { color: #45475a; text-align: right; font-size: 9.5px; }
-
-.debug-entry-ok    .debug-status { color: #a6e3a1; }
-.debug-entry-warn  .debug-status { color: #f9e2af; }
-.debug-entry-error .debug-status { color: #f38ba8; }
-.debug-entry-info  .debug-status { color: #89dceb; }
-
-.debug-entry pre {
-  grid-column: 1 / -1;
-  margin: 2px 0 3px 52px;
-  padding: 4px 8px;
-  max-height: 80px;
-  overflow-y: auto;
-  background: #11111b;
-  border-radius: 4px;
-  white-space: pre-wrap;
-  word-break: break-all;
-  color: #585b70;
-  font-size: 9.5px;
-}
+/* ── SVG icon sizing helpers ────────────────────────────────────────── */
+.icon-btn svg,
+.btn svg,
+.feature-icon svg,
+.site-favicon svg,
+.r-title svg,
+.setup-badge svg,
+.privacy-note svg,
+.domain-row svg { flex-shrink: 0; }
 
 /* ── Responsive ─────────────────────────────────────────────────────── */
 @media (max-width: 360px) {
   .key-input-row { flex-direction: column; }
   .score-row { flex-direction: column; align-items: flex-start; }
-  .debug-entry { grid-template-columns: 1fr; }
-  .debug-time, .debug-step { display: none; }
 }
