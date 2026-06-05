@@ -1,88 +1,71 @@
 /**
- * TermsLens Options Page Script
+ * TermsLens Options — Settings page logic
  */
 
-const apiKeyInput = document.getElementById('api-key-input');
-const saveBtn = document.getElementById('save-btn');
-const clearBtn = document.getElementById('clear-btn');
-const toggleBtn = document.getElementById('toggle-visibility');
+const input      = document.getElementById('api-key-input');
+const saveBtn    = document.getElementById('save-btn');
+const clearBtn   = document.getElementById('clear-btn');
+const toggleBtn  = document.getElementById('toggle-visibility');
 const feedbackEl = document.getElementById('feedback');
-const statusDot = document.getElementById('status-dot');
+const statusDot  = document.getElementById('status-dot');
 const statusText = document.getElementById('status-text');
 
-function showFeedback(message, type) {
-  feedbackEl.textContent = message;
+// ─── Status helpers ────────────────────────────────────────────────────
+function setStatus(hasKey) {
+  statusDot.className  = `status-dot ${hasKey ? 'active' : 'inactive'}`;
+  statusText.textContent = hasKey ? '✓ API key is configured' : 'No API key configured';
+}
+
+function showFeedback(msg, type /* 'success' | 'error' */) {
+  feedbackEl.textContent = msg;
   feedbackEl.className = `feedback ${type}`;
   feedbackEl.classList.remove('hidden');
-  setTimeout(() => {
-    feedbackEl.classList.add('hidden');
-  }, 4000);
+  clearTimeout(showFeedback._timer);
+  showFeedback._timer = setTimeout(() => feedbackEl.classList.add('hidden'), 4500);
 }
 
-function updateKeyStatus(hasKey) {
-  if (hasKey) {
-    statusDot.className = 'status-dot active';
-    statusText.textContent = 'API key is configured';
-  } else {
-    statusDot.className = 'status-dot inactive';
-    statusText.textContent = 'No API key configured';
-  }
-}
+// ─── Init ──────────────────────────────────────────────────────────────
+chrome.storage.local.get('geminiApiKey', d => setStatus(!!d.geminiApiKey));
 
-// Load current status
-chrome.storage.local.get('geminiApiKey', (data) => {
-  updateKeyStatus(!!data.geminiApiKey);
-});
-
-// Toggle password visibility
+// ─── Toggle visibility ─────────────────────────────────────────────────
 toggleBtn.addEventListener('click', () => {
-  apiKeyInput.type = apiKeyInput.type === 'password' ? 'text' : 'password';
+  input.type = input.type === 'password' ? 'text' : 'password';
+  toggleBtn.textContent = input.type === 'password' ? '👁' : '🙈';
 });
 
-// Save key
-saveBtn.addEventListener('click', () => {
-  const key = apiKeyInput.value.trim();
-
-  if (!key) {
-    showFeedback('Please enter an API key.', 'error');
-    return;
-  }
-
-  if (key.length > 200) {
-    showFeedback('API key is too long (max 200 characters).', 'error');
-    return;
-  }
+// ─── Save ──────────────────────────────────────────────────────────────
+function doSave() {
+  const key = input.value.trim();
+  if (!key) { showFeedback('Please enter an API key.', 'error'); return; }
+  if (key.length > 200) { showFeedback('Key too long (max 200 chars).', 'error'); return; }
 
   chrome.storage.local.set({ geminiApiKey: key }, () => {
     if (chrome.runtime.lastError) {
-      showFeedback('Failed to save key: ' + chrome.runtime.lastError.message, 'error');
+      showFeedback('Save failed: ' + chrome.runtime.lastError.message, 'error');
       return;
     }
-    showFeedback('✓ API key saved successfully!', 'success');
-    updateKeyStatus(true);
-    apiKeyInput.value = '';
-    apiKeyInput.type = 'password';
+    showFeedback('✓ API key saved.', 'success');
+    setStatus(true);
+    input.value = '';
+    input.type  = 'password';
+    toggleBtn.textContent = '👁';
   });
-});
+}
 
-// Clear key
+saveBtn.addEventListener('click', doSave);
+input.addEventListener('keydown', e => { if (e.key === 'Enter') doSave(); });
+
+// ─── Clear ─────────────────────────────────────────────────────────────
 clearBtn.addEventListener('click', () => {
-  if (!confirm('Remove your stored API key? You will need to re-enter it to use TermsLens.')) {
-    return;
-  }
+  if (!confirm('Remove stored API key? You will need to re-enter it to use TermsLens.')) return;
 
   chrome.storage.local.remove('geminiApiKey', () => {
     if (chrome.runtime.lastError) {
-      showFeedback('Failed to remove key: ' + chrome.runtime.lastError.message, 'error');
+      showFeedback('Remove failed: ' + chrome.runtime.lastError.message, 'error');
       return;
     }
     showFeedback('API key removed.', 'success');
-    updateKeyStatus(false);
-    apiKeyInput.value = '';
+    setStatus(false);
+    input.value = '';
   });
-});
-
-// Allow Enter key to save
-apiKeyInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') saveBtn.click();
 });

@@ -7,70 +7,88 @@
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
-  <div class="container">
+  <div class="page">
+
     <header class="header">
       <div class="logo">
         <span class="logo-icon">🔍</span>
         <span class="logo-text">TermsLens</span>
       </div>
-      <span class="header-subtitle">Settings</span>
+      <span class="header-tag">Settings</span>
     </header>
 
     <main class="main">
-      <section class="card">
-        <h2 class="card-title">🔑 Gemini API Key</h2>
-        <p class="card-desc">
-          TermsLens uses the Gemini AI API to analyze Terms of Service and Privacy Policies.
-          Your key is stored locally and only sent to Google's Gemini API.
-        </p>
 
-        <div class="key-status" id="key-status">
-          <span class="status-dot" id="status-dot"></span>
-          <span id="status-text">Checking...</span>
+      <!-- API Key card -->
+      <section class="card" id="key-card">
+        <div class="card-head">
+          <div class="card-title-row">
+            <span class="card-icon">🔑</span>
+            <h2 class="card-title">Gemini API Key</h2>
+          </div>
+          <p class="card-desc">
+            TermsLens uses Google Gemini to analyze policy text.
+            Your key is stored only on this device and sent exclusively to Google's API.
+          </p>
         </div>
 
-        <div class="form-group">
-          <label for="api-key-input">API Key</label>
+        <div class="status-banner" id="status-banner">
+          <span id="status-dot" class="status-dot"></span>
+          <span id="status-text" class="status-text">Checking…</span>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="api-key-input">API Key</label>
           <div class="input-row">
-            <input
-              type="password"
-              id="api-key-input"
-              placeholder="Paste your Gemini API key here"
-              autocomplete="off"
-              maxlength="200"
-            />
-            <button id="toggle-visibility" class="btn-icon" title="Toggle visibility">👁️</button>
+            <input type="password" id="api-key-input"
+                   placeholder="Paste your Gemini API key (AIzaSy…)"
+                   autocomplete="off" spellcheck="false" maxlength="200"/>
+            <button id="toggle-visibility" class="icon-btn" title="Show / hide key">👁</button>
           </div>
           <p class="field-hint">
-            Get a free key at
-            <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a>
-            → Get API Key
+            Get a free key at <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a>
+            → Get API Key → Create API Key
           </p>
         </div>
 
         <div class="btn-row">
-          <button id="save-btn" class="btn btn-primary">Save API Key</button>
-          <button id="clear-btn" class="btn btn-danger">Remove Key</button>
+          <button id="save-btn" class="btn btn-primary">Save key</button>
+          <button id="clear-btn" class="btn btn-danger">Remove key</button>
         </div>
 
         <div id="feedback" class="feedback hidden"></div>
       </section>
 
+      <!-- About card -->
       <section class="card">
-        <h2 class="card-title">ℹ️ About</h2>
-        <p class="card-desc">
-          <strong>TermsLens v1.0</strong><br>
-          Automatically detects, extracts, and analyzes Terms of Service and Privacy Policies using AI.
-          Get plain-English summaries, privacy scores, and red flag warnings.
-        </p>
-        <p class="card-desc" style="margin-top: 8px; font-size: 12px; color: #8b8fa8;">
-          Your Gemini API key is stored only in <code>chrome.storage.local</code> on your device
-          and is never transmitted anywhere except the official Gemini API endpoint.
-        </p>
+        <div class="card-head">
+          <div class="card-title-row">
+            <span class="card-icon">ℹ️</span>
+            <h2 class="card-title">About</h2>
+          </div>
+        </div>
+        <div class="about-grid">
+          <div class="about-item">
+            <span class="about-label">Version</span>
+            <span class="about-value">1.1.0</span>
+          </div>
+          <div class="about-item">
+            <span class="about-label">AI Model</span>
+            <span class="about-value">Gemini 2.0 Flash</span>
+          </div>
+          <div class="about-item">
+            <span class="about-label">Key storage</span>
+            <span class="about-value">chrome.storage.local (device only)</span>
+          </div>
+          <div class="about-item">
+            <span class="about-label">Data sent to</span>
+            <span class="about-value">Google Gemini API only</span>
+          </div>
+        </div>
       </section>
+
     </main>
   </div>
-
   <script src="options.js"></script>
 </body>
 </html>

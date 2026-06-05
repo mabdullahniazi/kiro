@@ -8,7 +8,7 @@
 </head>
 <body>
 
-  <!-- ── Header ───────────────────────────────────────────────────── -->
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
   <header class="header">
     <div class="logo">
       <span class="logo-icon">🔍</span>
@@ -20,80 +20,115 @@
     </div>
   </header>
 
-  <!-- ── SCREEN: Setup (no API key) ───────────────────────────────── -->
+  <!-- ── SCREEN: Setup ───────────────────────────────────────────────────── -->
   <div id="screen-setup" class="screen hidden">
     <div class="setup-wrap">
-      <div class="setup-icon">🔑</div>
-      <h2>Setup Required</h2>
-      <p>TermsLens needs a free Gemini API key to analyze policies.</p>
-      <ol class="setup-steps">
-        <li>Visit <strong>aistudio.google.com</strong></li>
-        <li>Sign in → click <strong>Get API Key</strong></li>
-        <li>Paste the key below</li>
-      </ol>
-      <div class="key-row">
-        <input type="password" id="setup-key-input"
-               placeholder="Paste your Gemini API key" autocomplete="off"/>
-        <button id="setup-save-btn" class="btn btn-primary">Save</button>
+      <div class="setup-badge">🔑 One-time setup</div>
+      <h2>Connect your AI key</h2>
+      <p class="sub">TermsLens uses Google Gemini to analyze policies. Paste your free API key below to get started.</p>
+
+      <div class="steps-card">
+        <div class="step-item">
+          <div class="step-num">1</div>
+          <div class="step-text">Go to <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a></div>
+        </div>
+        <div class="step-item">
+          <div class="step-num">2</div>
+          <div class="step-text">Click <strong>Get API Key</strong> → <strong>Create API Key</strong></div>
+        </div>
+        <div class="step-item">
+          <div class="step-num">3</div>
+          <div class="step-text">Copy and paste it below</div>
+        </div>
       </div>
-      <p class="muted-note">Stored locally on your device. Never shared.</p>
+
+      <div class="key-field">
+        <label for="setup-key-input">Gemini API Key</label>
+        <div class="key-input-row">
+          <input type="password" id="setup-key-input"
+                 placeholder="AIzaSy..." autocomplete="off" spellcheck="false"/>
+          <button id="setup-save-btn" class="btn btn-primary">Save key</button>
+        </div>
+      </div>
+      <p class="privacy-note">🔒 Stored locally on your device. Never sent anywhere except Google's API.</p>
       <div id="setup-error" class="inline-error hidden"></div>
     </div>
   </div>
 
-  <!-- ── SCREEN: Idle (has key, waiting for user action) ──────────── -->
+  <!-- ── SCREEN: Idle ────────────────────────────────────────────────────── -->
   <div id="screen-idle" class="screen hidden">
     <div class="idle-wrap">
-      <div class="idle-icon">🔍</div>
-      <h2>Ready to Analyze</h2>
-      <p id="idle-domain" class="idle-domain"></p>
-      <p>Click the button to scan this page for Terms of Service and Privacy Policy links, then analyze them with AI.</p>
-      <button id="analyze-btn" class="btn btn-primary btn-large">
+      <div class="idle-site-card">
+        <span class="site-favicon">🌐</span>
+        <span id="idle-domain" class="site-host">Current page</span>
+      </div>
+
+      <h2>Ready to analyze</h2>
+      <p class="sub">Click the button to detect Terms of Service and Privacy Policy links on this page, fetch their content, and get an AI-powered breakdown.</p>
+
+      <div class="feature-list">
+        <div class="feature-item">
+          <span class="feature-icon">🔎</span>
+          <span>Auto-detect policy links</span>
+        </div>
+        <div class="feature-item">
+          <span class="feature-icon">📄</span>
+          <span>Extract clean legal text</span>
+        </div>
+        <div class="feature-item">
+          <span class="feature-icon">🤖</span>
+          <span>AI analysis via Gemini</span>
+        </div>
+        <div class="feature-item">
+          <span class="feature-icon">📊</span>
+          <span>Privacy score + red flags</span>
+        </div>
+      </div>
+
+      <button id="analyze-btn" class="btn btn-primary btn-full btn-large">
         Analyze This Page
       </button>
     </div>
   </div>
 
-  <!-- ── SCREEN: Loading ──────────────────────────────────────────── -->
+  <!-- ── SCREEN: Loading ────────────────────────────────────────────────── -->
   <div id="screen-loading" class="screen hidden">
     <div class="loading-wrap">
-      <div class="spinner"></div>
-      <p id="loading-step" class="loading-step">Starting…</p>
-      <p class="loading-sub">Stay here — analysis runs in the background</p>
+      <div class="spinner-ring"></div>
+      <p class="loading-title" id="loading-step">Starting analysis…</p>
+      <p class="loading-sub">Keep this panel open — results load here</p>
 
-      <!-- Live step tracker -->
       <div id="step-tracker" class="step-tracker"></div>
     </div>
   </div>
 
-  <!-- ── SCREEN: No links found ───────────────────────────────────── -->
+  <!-- ── SCREEN: No links ───────────────────────────────────────────────── -->
   <div id="screen-no-links" class="screen hidden">
     <div class="empty-wrap">
-      <div class="empty-icon">🔎</div>
-      <h2>No Policies Found</h2>
-      <p>No Terms of Service or Privacy Policy links were found on this page.</p>
-      <p class="muted-note">Try visiting the site's homepage or footer.</p>
-      <button id="no-links-retry-btn" class="btn btn-secondary">Try Again</button>
+      <div class="empty-icon-wrap">🔎</div>
+      <h2>No policies found</h2>
+      <p>No Terms of Service or Privacy Policy links were detected on this page.</p>
+      <p class="hint">Try visiting the site's homepage or footer, then re-analyze.</p>
+      <button id="no-links-retry-btn" class="btn btn-secondary">Try again</button>
     </div>
   </div>
 
-  <!-- ── SCREEN: Error ────────────────────────────────────────────── -->
+  <!-- ── SCREEN: Error ──────────────────────────────────────────────────── -->
   <div id="screen-error" class="screen hidden">
     <div class="error-wrap">
-      <div class="error-icon">⚠️</div>
-      <h2>Something Went Wrong</h2>
-      <p id="error-message" class="error-message"></p>
+      <div class="error-icon-wrap">⚠️</div>
+      <h2>Something went wrong</h2>
+      <pre id="error-message" class="error-message"></pre>
       <div class="error-btns">
-        <button id="error-retry-btn" class="btn btn-secondary">Try Again</button>
-        <button id="error-settings-btn" class="btn btn-ghost hidden">Update API Key</button>
+        <button id="error-retry-btn" class="btn btn-secondary">Try again</button>
+        <button id="error-settings-btn" class="btn btn-ghost hidden">Update API key</button>
       </div>
     </div>
   </div>
 
-  <!-- ── SCREEN: Results ──────────────────────────────────────────── -->
+  <!-- ── SCREEN: Results ────────────────────────────────────────────────── -->
   <div id="screen-results" class="screen hidden">
 
-    <!-- Hero: domain + score -->
     <div class="results-hero">
       <div class="domain-row">
         <span>🌐</span>
@@ -111,57 +146,53 @@
       </div>
     </div>
 
-    <!-- Docs analysed pills -->
     <div id="docs-analysed" class="docs-row"></div>
-
-    <!-- Fetch failures warning -->
     <div id="fetch-warnings" class="fetch-warnings hidden"></div>
 
-    <!-- Sections -->
     <div class="results-body">
 
       <section class="r-section">
-        <h3 class="r-title">📝 Summary</h3>
+        <h3 class="r-title">Summary</h3>
         <p id="result-summary" class="r-text"></p>
       </section>
 
       <section class="r-section">
-        <h3 class="r-title">📦 What They Collect</h3>
+        <h3 class="r-title">What they collect</h3>
         <ul id="result-collected" class="tag-list"></ul>
       </section>
 
       <section class="r-section">
-        <h3 class="r-title">🤝 Who They Share With</h3>
+        <h3 class="r-title">Who they share with</h3>
         <ul id="result-shared" class="tag-list"></ul>
       </section>
 
       <section class="r-section">
-        <h3 class="r-title r-title--danger">🚩 Red Flags</h3>
+        <h3 class="r-title r-title--danger">Red flags</h3>
         <ul id="result-flags" class="flag-list"></ul>
       </section>
 
       <section class="r-section">
-        <h3 class="r-title">✅ Your Rights</h3>
+        <h3 class="r-title">Your rights</h3>
         <ul id="result-rights" class="rights-list"></ul>
       </section>
 
       <section class="r-section">
-        <h3 class="r-title">💡 Recommendation</h3>
+        <h3 class="r-title">Recommendation</h3>
         <p id="result-recommendation" class="recommendation"></p>
       </section>
 
-    </div><!-- /results-body -->
+    </div>
 
     <div class="results-footer">
       <button id="reanalyze-btn" class="btn btn-ghost btn-sm">🔄 Re-analyze</button>
     </div>
 
-  </div><!-- /screen-results -->
+  </div>
 
-  <!-- ── DEBUG LOG PANEL (always in DOM, toggled) ──────────────────── -->
+  <!-- ── Debug panel ────────────────────────────────────────────────────── -->
   <div id="debug-panel" class="debug-panel hidden">
     <div class="debug-header">
-      <span>🐛 Debug Log</span>
+      <span>Debug Log</span>
       <button id="clear-debug-btn" class="debug-clear-btn">Clear</button>
     </div>
     <div id="debug-entries" class="debug-entries"></div>

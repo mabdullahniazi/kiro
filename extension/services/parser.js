@@ -1,36 +1,81 @@
 /**
  * TermsLens Parser Service
- * Fetches each policy URL in parallel and extracts clean text.
- * Accepts an optional `pushLog` callback so the background script
- * can include parser-level events in the unified debug log.
+ * Runs inside the background service worker — NO browser DOM APIs available.
+ * HTML → text extraction is done with regex, not DOMParser.
  */
 
-// ─── Logger ───────────────────────────────────────────────────────────────────
-const TAG  = '[TermsLens:parser]';
+const TAG   = '[TermsLens:parser]';
 const plog  = (...a) => console.log(TAG, ...a);
-const pwarn = (...a) => console.warn(TAG, '⚠️', ...a);
+const pwarn = (...a) => console.warn(TAG,  '⚠️', ...a);
 const perr  = (...a) => console.error(TAG, '❌', ...a);
 
-// ─── Config ───────────────────────────────────────────────────────────────────
 const FETCH_TIMEOUT_MS   = 15000;
 const MAX_COMBINED_CHARS = 30000;
 
-const STRIP_TAGS = [
-  'script', 'style', 'noscript', 'iframe', 'svg', 'canvas',
-  'nav', 'header', 'footer', 'aside',
-  'form', 'picture', 'video', 'audio',
-];
+// ─── Regex-based HTML → text (no DOMParser needed) ────────────────────────────
 
-const BOILERPLATE_WORDS = [
-  'cookie-notice', 'cookie-banner', 'cookie-bar',
-  'advertisement', 'popup', 'modal', 'sidebar', 'side-bar',
-];
+// Block-level elements whose entire tag + content we strip
+const BLOCK_STRIP_RE = new RegExp(
+  '<(script|style|noscript|iframe|svg|canvas|nav|header|footer|aside|form|' +
+  'picture|video|audio|template)[^>]*>[\\s\\S]*?<\\/\\1>',
+  'gi'
+);
 
-// ─── Fetch ────────────────────────────────────────────────────────────────────
+// Strip all remaining HTML tags
+const TAG_RE        = /<[^>]+>/g;
+// Collapse &nbsp; and other common entities
+const NBSP_RE       = /&nbsp;/gi;
+const AMP_RE        = /&amp;/gi;
+const LT_RE         = /&lt;/gi;
+const GT_RE         = /&gt;/gi;
+const QUOT_RE       = /&quot;|&#39;/gi;
+const ENTITY_RE     = /&#\d+;/g;
+// Whitespace normalisers
+const MULTI_SPACE   = /[ \t]+/g;
+const MULTI_NEWLINE = /\n{3,}/g;
+
+/**
+ * Extract readable text from raw HTML using regex only.
+ * Safe to run inside a service worker.
+ */
+function extractTextFromHtml(html) {
+  let text = html;
+
+  // 1. Remove block elements (script, style, nav, header, footer, etc.)
+  text = text.replace(BLOCK_STRIP_RE, ' ');
+
+  // 2. Strip all remaining tags
+  text = text.replace(TAG_RE, ' ');
+
+  // 3. Decode common HTML entities
+  text = text
+    .replace(NBSP_RE,   ' ')
+    .replace(AMP_RE,    '&')
+    .replace(LT_RE,     '<')
+    .replace(GT_RE,     '>')
+    .replace(QUOT_RE,   '"')
+    .replace(ENTITY_RE, ' ');
+
+  // 4. Normalise whitespace
+  text = text
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(MULTI_SPACE, ' ')
+    .replace(MULTI_NEWLINE, '\n\n')
+    .trim();
+
+  return text;
+}
+
+// ─── Fetch with timeout ───────────────────────────────────────────────────────
+
 async function fetchWithTimeout(url) {
   plog(`Fetching ${url}`);
   const ctrl  = new AbortController();
-  const timer = setTimeout(() => { pwarn(`Timeout for ${url}`); ctrl.abort(); }, FETCH_TIMEOUT_MS);
+  const timer = setTimeout(() => {
+    pwarn(`Timeout after ${FETCH_TIMEOUT_MS / 1000}s for ${url}`);
+    ctrl.abort();
+  }, FETCH_TIMEOUT_MS);
 
   try {
     const res = await fetch(url, {
@@ -42,15 +87,16 @@ async function fetchWithTimeout(url) {
       },
     });
     clearTimeout(timer);
-    plog(`HTTP ${res.status} ${res.statusText} for ${url}`);
+    plog(`HTTP ${res.status} ${res.statusText} — ${url}`);
 
     if (!res.ok) {
       const msg = `HTTP ${res.status} ${res.statusText}`;
-      perr(`Fetch failed for ${url}: ${msg}`);
+      perr(`Fetch failed: ${msg} — ${url}`);
       return { html: null, error: msg, status: res.status };
     }
+
     const html = await res.text();
-    plog(`Fetched ${html.length} bytes from ${url}`);
+    plog(`Received ${html.length} bytes from ${url}`);
     return { html, error: null, status: res.status };
 
   } catch (e) {
@@ -65,94 +111,13 @@ async function fetchWithTimeout(url) {
   }
 }
 
-// ─── HTML → text ──────────────────────────────────────────────────────────────
-function stripTagBlocks(html, tagName) {
-  const block = new RegExp(`<${tagName}\\b[^>]*>[\\s\\S]*?<\\/${tagName}\\s*>`, 'gi');
-  return html.replace(block, ' ');
-}
-
-function stripBoilerplateElements(html) {
-  let output = html;
-
-  for (const word of BOILERPLATE_WORDS) {
-    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const attrMatcher = `(?:class|id)=["'][^"']*${escaped}[^"']*["']`;
-    const paired = new RegExp(`<([a-z][\\w:-]*)\\b(?=[^>]*${attrMatcher})[^>]*>[\\s\\S]*?<\\/\\1\\s*>`, 'gi');
-    const single = new RegExp(`<[a-z][\\w:-]*\\b(?=[^>]*${attrMatcher})[^>]*\\/?>`, 'gi');
-    output = output.replace(paired, ' ').replace(single, ' ');
-  }
-
-  output = output
-    .replace(/<([a-z][\w:-]*)\b(?=[^>]*aria-hidden=["']true["'])[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ')
-    .replace(/<([a-z][\w:-]*)\b(?=[^>]*role=["'](?:banner|navigation|complementary|search)["'])[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ');
-
-  return output;
-}
-
-function decodeHtmlEntities(text) {
-  const named = {
-    amp: '&',
-    apos: "'",
-    gt: '>',
-    lt: '<',
-    nbsp: ' ',
-    quot: '"',
-  };
-
-  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z][a-z0-9]+);/gi, (_entity, value) => {
-    const lower = value.toLowerCase();
-    if (lower[0] === '#') {
-      const codePoint = lower[1] === 'x'
-        ? Number.parseInt(lower.slice(2), 16)
-        : Number.parseInt(lower.slice(1), 10);
-      if (Number.isFinite(codePoint)) {
-        try { return String.fromCodePoint(codePoint); }
-        catch { return ' '; }
-      }
-      return ' ';
-    }
-    return named[lower] ?? ' ';
-  });
-}
-
-function pickBodyHtml(html) {
-  const bodyMatch = html.match(/<body\b[^>]*>([\s\S]*?)<\/body\s*>/i);
-  return bodyMatch ? bodyMatch[1] : html;
-}
-
-function extractCleanText(html, sourceUrl) {
-  plog(`Parsing HTML (${html.length} bytes) for ${sourceUrl}`);
-
-  let working = pickBodyHtml(html);
-  for (const tagName of STRIP_TAGS) {
-    working = stripTagBlocks(working, tagName);
-  }
-  working = stripBoilerplateElements(working);
-
-  const raw = working
-    .replace(/<!--[\s\S]*?-->/g, ' ')
-    .replace(/<li\b[^>]*>/gi, '\n- ')
-    .replace(/<(br|\/p|\/div|\/section|\/article|\/main|\/h[1-6]|\/li|\/tr)\b[^>]*>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ');
-
-  const clean = decodeHtmlEntities(raw)
-    .replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-    .replace(/\u00a0/g, ' ')
-    .replace(/[ \t]+/g, ' ')
-    .replace(/[ \t]*\n[ \t]*/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-
-  plog(`Extracted ${clean.length} chars from ${sourceUrl}`);
-  return clean;
-}
-
 // ─── Main export ──────────────────────────────────────────────────────────────
+
 /**
- * Fetch and extract policy text from a list of links.
- * @param {Array<{type,url}>}  policyLinks
- * @param {Function|null}      pushLog  — optional (step,status,msg,detail)=>void
- * @returns {{ combinedText, perDoc, failures }}
+ * Fetch and extract text from policy links in parallel.
+ * @param {Array<{type: string, url: string}>} policyLinks
+ * @param {Function|null} pushLog  optional (step, status, msg, detail) => void
+ * @returns {{ combinedText: string, perDoc: Array, failures: Array }}
  */
 async function extractPolicyTexts(policyLinks, pushLog = null) {
   const log = (step, status, msg, detail) => {
@@ -160,8 +125,10 @@ async function extractPolicyTexts(policyLinks, pushLog = null) {
     if (pushLog) pushLog(step, status, msg, detail);
   };
 
-  log('extraction', 'info', `Fetching ${policyLinks.length} policy URL(s) in parallel`,
-    policyLinks.map(l => `[${l.type}] ${l.url}`));
+  log('extraction', 'info',
+    `Fetching ${policyLinks.length} policy URL(s) in parallel`,
+    policyLinks.map(l => `[${l.type}] ${l.url}`)
+  );
 
   const perDoc   = [];
   const failures = [];
@@ -177,24 +144,25 @@ async function extractPolicyTexts(policyLinks, pushLog = null) {
         return;
       }
 
-      const text = extractCleanText(html, url);
-      if (!text || text.length < 50) {
+      const text = extractTextFromHtml(html);
+
+      if (!text || text.length < 100) {
         const reason = `Extracted text too short (${text.length} chars)`;
-        log('extraction', 'warn', `Extraction thin [${type}] ${url}: ${reason}`);
+        log('extraction', 'warn', `Thin result [${type}] ${url}: ${reason}`);
         failures.push({ type, url, reason });
         return;
       }
 
-      log('extraction', 'ok', `[${type}] ${url} — ${text.length} chars extracted`);
+      log('extraction', 'ok', `[${type}] ${url} — ${text.length} chars`);
       perDoc.push({ type, url, text, charCount: text.length });
     })
   );
 
-  // Surface any Promise rejections (shouldn't happen but log them)
+  // Surface any unexpected rejections
   settled.forEach((s, i) => {
     if (s.status === 'rejected') {
       const { type, url } = policyLinks[i];
-      perr(`Promise rejected for [${type}] ${url}:`, s.reason);
+      perr(`Promise rejected [${type}] ${url}:`, s.reason);
       failures.push({ type, url, reason: String(s.reason) });
     }
   });
@@ -210,14 +178,16 @@ async function extractPolicyTexts(policyLinks, pushLog = null) {
   });
 
   let combinedText = sections.join('\n\n' + '─'.repeat(60) + '\n\n');
+
   if (combinedText.length > MAX_COMBINED_CHARS) {
-    pwarn(`Truncating combined text from ${combinedText.length} to ${MAX_COMBINED_CHARS} chars`);
+    pwarn(`Truncating combined text ${combinedText.length} → ${MAX_COMBINED_CHARS} chars`);
     combinedText = combinedText.slice(0, MAX_COMBINED_CHARS);
   }
 
   log('extraction', 'ok',
-    `Combined text: ${combinedText.length} chars from ${perDoc.length} document(s)`,
-    perDoc.map(d => ({ type: d.type, chars: d.charCount })));
+    `Combined: ${combinedText.length} chars from ${perDoc.length} doc(s)`,
+    perDoc.map(d => ({ type: d.type, chars: d.charCount }))
+  );
 
   return { combinedText, perDoc, failures };
 }
