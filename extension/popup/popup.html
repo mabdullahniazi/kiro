@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TermsLens</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="logo">
+      <span class="logo-icon">🔍</span>
+      <span class="logo-text">TermsLens</span>
+    </div>
+    <a href="#" id="open-options" class="settings-btn" title="Settings">⚙️</a>
+  </header>
+
+  <!-- Setup Screen (shown when no API key) -->
+  <div id="screen-setup" class="screen hidden">
+    <div class="setup-container">
+      <div class="setup-icon">🔑</div>
+      <h2>Setup Required</h2>
+      <p>To analyze policies with AI, you need a free Gemini API key.</p>
+      <ol class="setup-steps">
+        <li>Go to <strong>aistudio.google.com</strong></li>
+        <li>Sign in and click <strong>Get API Key</strong></li>
+        <li>Copy and paste your key below</li>
+      </ol>
+      <div class="input-group">
+        <input type="password" id="inline-api-key" placeholder="Paste your Gemini API key here" autocomplete="off" />
+        <button id="inline-save-key" class="btn btn-primary">Save Key</button>
+      </div>
+      <p class="setup-note">Your key is stored locally and never shared.</p>
+      <div id="setup-error" class="error-msg hidden"></div>
+    </div>
+  </div>
+
+  <!-- Loading Screen -->
+  <div id="screen-loading" class="screen hidden">
+    <div class="loading-container">
+      <div class="spinner"></div>
+      <p class="loading-text" id="loading-message">Scanning for policy links...</p>
+      <p class="loading-sub">This usually takes 5–15 seconds</p>
+    </div>
+  </div>
+
+  <!-- No Links Screen -->
+  <div id="screen-no-links" class="screen hidden">
+    <div class="empty-container">
+      <div class="empty-icon">🔎</div>
+      <h2>No Policies Found</h2>
+      <p>No Terms of Service or Privacy Policy links were detected on this page.</p>
+      <p class="empty-sub">Try visiting a website's homepage or footer.</p>
+      <button id="retry-btn" class="btn btn-secondary">Try Again</button>
+    </div>
+  </div>
+
+  <!-- Error Screen -->
+  <div id="screen-error" class="screen hidden">
+    <div class="error-container">
+      <div class="error-icon">⚠️</div>
+      <h2>Something Went Wrong</h2>
+      <p id="error-message-text" class="error-detail"></p>
+      <button id="error-retry-btn" class="btn btn-secondary">Try Again</button>
+      <button id="error-settings-btn" class="btn btn-ghost">Update API Key</button>
+    </div>
+  </div>
+
+  <!-- Results Screen -->
+  <div id="screen-results" class="screen hidden">
+    <!-- Domain + Score Hero -->
+    <div class="results-hero">
+      <div class="domain-row">
+        <span class="domain-icon">🌐</span>
+        <span id="result-domain" class="domain-name"></span>
+      </div>
+      <div class="score-block">
+        <div id="score-ring" class="score-ring">
+          <span id="score-number" class="score-number"></span>
+          <span class="score-denom">/10</span>
+        </div>
+        <div class="score-meta">
+          <div id="score-label" class="score-label"></div>
+          <div class="score-title">Privacy Score</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Extraction failures warning -->
+    <div id="fetch-warnings" class="fetch-warnings hidden"></div>
+
+    <!-- Sections -->
+    <div class="results-body">
+
+      <section class="result-section">
+        <h3 class="section-title">📝 Summary</h3>
+        <p id="result-summary" class="section-text"></p>
+      </section>
+
+      <section class="result-section">
+        <h3 class="section-title">📦 What They Collect</h3>
+        <ul id="result-data-collected" class="tag-list"></ul>
+      </section>
+
+      <section class="result-section">
+        <h3 class="section-title">🤝 Who They Share With</h3>
+        <ul id="result-data-shared" class="tag-list"></ul>
+      </section>
+
+      <section class="result-section" id="section-red-flags">
+        <h3 class="section-title red-flags-title">🚩 Red Flags</h3>
+        <ul id="result-red-flags" class="flag-list"></ul>
+      </section>
+
+      <section class="result-section">
+        <h3 class="section-title">✅ Your Rights</h3>
+        <ul id="result-user-rights" class="rights-list"></ul>
+      </section>
+
+      <section class="result-section">
+        <h3 class="section-title">💡 Recommendation</h3>
+        <p id="result-recommendation" class="recommendation-text"></p>
+      </section>
+    </div>
+
+    <div class="results-footer">
+      <button id="analyze-again-btn" class="btn btn-ghost btn-sm">🔄 Re-analyze</button>
+    </div>
+  </div>
+
+  <!-- Default / Initial Screen -->
+  <div id="screen-default" class="screen">
+    <div class="default-container">
+      <div class="default-icon">🔍</div>
+      <h2>Ready to Analyze</h2>
+      <p>Click the button below to scan this page for Terms of Service and Privacy Policies.</p>
+      <button id="analyze-btn" class="btn btn-primary btn-large">Analyze This Page</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
