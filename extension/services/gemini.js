@@ -1,158 +1,325 @@
 /**
  * TermsLens Gemini Client
- * Sends policy text to Gemini API and returns structured Analysis_Result.
+ * Full verbose logging of every request/response/validation step.
  */
 
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
-const REQUEST_TIMEOUT_MS = 15000;
-const MAX_INPUT_CHARS = 100000;
-const RETRY_DELAY_MS = 2000;
+const TAG   = '[TermsLens:gemini]';
+const glog  = (...a) => console.log(TAG, ...a);
+const gwarn = (...a) => console.warn(TAG, '⚠️', ...a);
+const gerr  = (...a) => console.error(TAG, '❌', ...a);
 
-const ANALYSIS_PROMPT = (policyText) => `
-You are a legal analyst specializing in privacy law and consumer rights. Analyze the following Terms of Service and/or Privacy Policy text and respond with ONLY a valid JSON object — no markdown, no explanation, just the raw JSON.
+const GEMINI_API_BASE   = 'https://generativelanguage.googleapis.com/v1beta/models';
+const GEMINI_MODELS     = [
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash',
+];
+const REQUEST_TIMEOUT   = 30000;   // 30 s — Gemini can be slow on long text
+const MAX_INPUT_CHARS   = 28000;   // stay within Gemini token limits
+const RETRY_DELAY_MS    = 3000;
+const MAX_ATTEMPTS_PER_MODEL = 2;
 
-The JSON must conform exactly to this schema:
-{
-  "summary": "A 2-3 sentence plain-English summary of what this policy means for the user.",
-  "dataCollected": ["list", "of", "data", "types", "collected"],
-  "dataSharedWith": ["list", "of", "third", "parties", "data", "is", "shared", "with"],
-  "redFlags": ["list", "of", "concerning", "practices", "in", "plain", "English"],
-  "userRights": ["list", "of", "rights", "the", "user", "has"],
-  "score": 7,
-  "recommendation": "A single-sentence plain-English recommendation for the user."
+function buildGeminiUrl(model) {
+  return `${GEMINI_API_BASE}/${encodeURIComponent(model)}:generateContent`;
 }
 
-Rules:
-- score must be an integer between 0 and 10 (10 = excellent privacy, 0 = terrible privacy)
-- All text must be in plain English — no legal jargon
-- Arrays can be empty [] if nothing applies
-- redFlags should highlight anything that could harm the user: excessive data collection, selling data, no deletion rights, etc.
+function isRetryableStatus(status) {
+  return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+}
 
-Policy Text:
----
-${policyText.slice(0, MAX_INPUT_CHARS)}
----
-`.trim();
+// ─── Prompt ───────────────────────────────────────────────────────────────────
+function buildPrompt(policyText) {
+  return `You are a privacy-law analyst. Read the policy text below and reply with ONLY a valid JSON object — absolutely no markdown, no code fences, no explanation.
 
-/**
- * Validate that a parsed object matches the Analysis_Result schema.
- */
-function validateAnalysisResult(obj) {
-  if (!obj || typeof obj !== 'object') return false;
+Required JSON schema (all fields mandatory):
+{
+  "summary":        "2–3 plain-English sentences describing what this policy means for the user",
+  "dataCollected":  ["array of specific data types the company collects"],
+  "dataSharedWith": ["array of third parties / categories the data is shared with"],
+  "redFlags":       ["array of practices that could harm or surprise the user, in plain English"],
+  "userRights":     ["array of rights the user has under this policy"],
+  "score":          7,
+  "recommendation": "One plain-English sentence telling the user what to do"
+}
+
+Constraints:
+- score must be an INTEGER 0–10 (10 = best privacy, 0 = worst)
+- Plain English only — no legal jargon
+- Arrays may be empty [] but must be present
+- Output ONLY the JSON object, nothing else
+
+Policy text:
+${policyText.slice(0, MAX_INPUT_CHARS)}`.trim();
+}
+
+// ─── Validation ───────────────────────────────────────────────────────────────
+function validateResult(obj) {
+  if (!obj || typeof obj !== 'object') {
+    gerr('Validation failed: not an object:', typeof obj);
+    return { ok: false, reason: `Expected object, got ${typeof obj}` };
+  }
 
   const checks = [
-    typeof obj.summary === 'string' && obj.summary.length > 0,
-    Array.isArray(obj.dataCollected),
-    Array.isArray(obj.dataSharedWith),
-    Array.isArray(obj.redFlags),
-    Array.isArray(obj.userRights),
-    typeof obj.score === 'number' && Number.isInteger(obj.score) && obj.score >= 0 && obj.score <= 10,
-    typeof obj.recommendation === 'string' && obj.recommendation.length > 0,
+    [typeof obj.summary === 'string' && obj.summary.length > 0,
+      `summary must be a non-empty string (got ${typeof obj.summary}: "${String(obj.summary).slice(0,40)}")`],
+    [Array.isArray(obj.dataCollected),
+      `dataCollected must be an array (got ${typeof obj.dataCollected})`],
+    [Array.isArray(obj.dataSharedWith),
+      `dataSharedWith must be an array (got ${typeof obj.dataSharedWith})`],
+    [Array.isArray(obj.redFlags),
+      `redFlags must be an array (got ${typeof obj.redFlags})`],
+    [Array.isArray(obj.userRights),
+      `userRights must be an array (got ${typeof obj.userRights})`],
+    [typeof obj.score === 'number' && Number.isInteger(obj.score) && obj.score >= 0 && obj.score <= 10,
+      `score must be integer 0–10 (got ${typeof obj.score}: ${obj.score})`],
+    [typeof obj.recommendation === 'string' && obj.recommendation.length > 0,
+      `recommendation must be a non-empty string (got ${typeof obj.recommendation}: "${String(obj.recommendation).slice(0,40)}")`],
   ];
 
-  return checks.every(Boolean);
+  const failures = checks.filter(([pass]) => !pass).map(([, msg]) => msg);
+
+  if (failures.length > 0) {
+    gerr('Validation failures:', failures);
+    return { ok: false, reason: failures.join('; ') };
+  }
+
+  glog('Validation passed ✅');
+  return { ok: true };
 }
 
-/**
- * Call the Gemini API once with a timeout.
- */
-async function callGeminiOnce(apiKey, policyText) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+// ─── Single attempt ───────────────────────────────────────────────────────────
+async function callGeminiOnce(apiKey, policyText, model, attempt = 1) {
+  const apiUrl = buildGeminiUrl(model);
+  glog(`Attempt ${attempt} on ${model}: sending ${Math.min(policyText.length, MAX_INPUT_CHARS)} chars to Gemini`);
 
-  const requestBody = {
-    contents: [
-      {
-        parts: [
-          { text: ANALYSIS_PROMPT(policyText) }
-        ]
-      }
-    ],
-    generationConfig: {
-      temperature: 0.2,
-      maxOutputTokens: 2048,
-    }
+  const ctrl  = new AbortController();
+  const timer = setTimeout(() => {
+    gwarn(`Request timeout (${REQUEST_TIMEOUT}ms) on ${model}, attempt ${attempt}`);
+    ctrl.abort();
+  }, REQUEST_TIMEOUT);
+
+  const body = {
+    contents: [{ parts: [{ text: buildPrompt(policyText) }] }],
+    generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
   };
 
+  let httpStatus = null;
   try {
-    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-      method: 'POST',
+    glog(`POST ${apiUrl} (${model}, attempt ${attempt})`);
+    const res = await fetch(`${apiUrl}?key=${apiKey}`, {
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
-      signal: controller.signal,
+      body:    JSON.stringify(body),
+      signal:  ctrl.signal,
     });
-
     clearTimeout(timer);
+    httpStatus = res.status;
+    glog(`HTTP ${res.status} ${res.statusText} (${model}, attempt ${attempt})`);
 
-    if (response.status === 401 || response.status === 403) {
-      return { result: null, error: 'invalid_key', status: response.status };
+    // ── Auth errors ──────────────────────────────────────────────────────────
+    if (res.status === 401 || res.status === 403) {
+      const errBody = await res.text().catch(() => '');
+      gerr(`Auth error ${res.status}:`, errBody.slice(0, 200));
+      return { result: null, error: `${model} auth error ${res.status}: ${errBody.slice(0,100)}`, status: res.status, invalidKey: true, retryable: false, model, attempt, httpStatus };
     }
 
-    if (!response.ok) {
-      const errText = await response.text().catch(() => '');
-      return { result: null, error: `Gemini API error ${response.status}: ${errText}` };
+    // ── Other HTTP errors ────────────────────────────────────────────────────
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      gerr(`Gemini API error ${res.status}:`, errBody.slice(0, 300));
+      return { result: null, error: `${model} HTTP ${res.status}: ${errBody.slice(0,150)}`, status: res.status, retryable: isRetryableStatus(res.status), model, attempt, httpStatus };
     }
 
-    const data = await response.json();
+    // ── Parse JSON wrapper ───────────────────────────────────────────────────
+    let data;
+    try {
+      data = await res.json();
+    } catch (parseErr) {
+      gerr('Failed to parse Gemini wrapper JSON:', parseErr.message);
+      return { result: null, error: `${model} JSON parse error on Gemini response: ${parseErr.message}`, retryable: false, model, attempt, httpStatus };
+    }
 
-    // Extract the text content from Gemini's response structure
-    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    glog('Gemini response structure keys:', Object.keys(data));
+
+    // ── Check for content filters / empty candidates ─────────────────────────
+    if (!data.candidates || data.candidates.length === 0) {
+      const promptFeedback = JSON.stringify(data.promptFeedback ?? {});
+      gerr('No candidates in Gemini response. promptFeedback:', promptFeedback);
+      return { result: null, error: `${model} returned no candidates. promptFeedback: ${promptFeedback}`, retryable: false, model, attempt, httpStatus };
+    }
+
+    const candidate = data.candidates[0];
+    glog('Finish reason:', candidate.finishReason);
+
+    if (candidate.finishReason && candidate.finishReason !== 'STOP') {
+      gwarn(`Unexpected finishReason: ${candidate.finishReason}`);
+    }
+
+    const rawText = candidate?.content?.parts?.[0]?.text;
     if (!rawText) {
-      return { result: null, error: 'Empty response from Gemini API' };
+      gerr('No text in candidate parts. Candidate:', JSON.stringify(candidate).slice(0, 200));
+      return { result: null, error: `${model} returned empty text content`, retryable: false, model, attempt, httpStatus };
     }
 
-    // Strip markdown code fences if present
-    const jsonText = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+    glog(`Raw text from Gemini (first 200 chars): ${rawText.slice(0, 200)}`);
 
+    // ── Strip code fences ────────────────────────────────────────────────────
+    let jsonStr = rawText
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
+
+    // Sometimes Gemini wraps with extra text before/after JSON
+    // Find the outermost { ... } block
+    const firstBrace = jsonStr.indexOf('{');
+    const lastBrace  = jsonStr.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      if (firstBrace > 0 || lastBrace < jsonStr.length - 1) {
+        gwarn(`Trimming non-JSON prefix/suffix: ${firstBrace} chars before, ${jsonStr.length - lastBrace - 1} chars after`);
+        jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
+      }
+    }
+
+    glog(`JSON string to parse (first 200): ${jsonStr.slice(0, 200)}`);
+
+    // ── Parse inner JSON ─────────────────────────────────────────────────────
     let parsed;
     try {
-      parsed = JSON.parse(jsonText);
-    } catch {
-      return { result: null, error: `Malformed JSON response: ${jsonText.slice(0, 100)}` };
+      parsed = JSON.parse(jsonStr);
+    } catch (jsonErr) {
+      gerr(`JSON.parse failed: ${jsonErr.message}`);
+      gerr(`Failing JSON string: ${jsonStr.slice(0, 400)}`);
+      return { result: null, error: `Gemini returned invalid JSON: ${jsonErr.message} — preview: ${jsonStr.slice(0,80)}`, attempt, httpStatus };
     }
 
-    if (!validateAnalysisResult(parsed)) {
-      return { result: null, error: 'Response missing required fields or wrong types' };
+    // ── Validate schema ──────────────────────────────────────────────────────
+    const validation = validateResult(parsed);
+    if (!validation.ok) {
+      gerr(`Schema validation failed: ${validation.reason}`);
+      return { result: null, error: `Schema validation failed: ${validation.reason}`, attempt, httpStatus };
     }
 
-    return { result: parsed, error: null };
-  } catch (err) {
+    glog('✅ Result OK:', { score: parsed.score, redFlags: parsed.redFlags.length, dataCollected: parsed.dataCollected.length });
+    return { result: parsed, error: null, attempt, httpStatus, invalidKey: false };
+
+  } catch (e) {
     clearTimeout(timer);
-    if (err.name === 'AbortError') {
-      return { result: null, error: 'Gemini API request timed out after 10 seconds' };
+    if (e.name === 'AbortError') {
+      gerr(`Attempt ${attempt} aborted (timeout)`);
+      return { result: null, error: `${model} request timed out after ${REQUEST_TIMEOUT / 1000}s`, retryable: true, model, attempt, httpStatus };
     }
-    return { result: null, error: err.message };
+    gerr(`Attempt ${attempt} threw:`, e.message);
+    return { result: null, error: `${model}: ${e.message}`, retryable: true, model, attempt, httpStatus };
   }
 }
 
+// ─── Public API ───────────────────────────────────────────────────────────────
 /**
- * Analyze policy text using Gemini. Retries once on failure.
- * Returns { result: AnalysisResult, error: string|null, invalidKey: bool }
+ * Analyze policy text with Gemini. Retries once on non-auth failure.
+ * Returns { result, error, invalidKey, debugInfo }
+ */
+async function analyzeWithGeminiSingleModel(apiKey, policyText) {
+  glog(`analyzeWithGemini called. Text length: ${policyText.length}`);
+
+  // Attempt 1
+  const a1 = await callGeminiOnce(apiKey, policyText, GEMINI_MODELS[0], 1);
+  if (a1.result) {
+    return { result: a1.result, error: null, invalidKey: false, debugInfo: { attempt: 1, httpStatus: a1.httpStatus } };
+  }
+
+  // Auth failure — no retry
+  if (a1.invalidKey) {
+    return { result: null, error: a1.error, invalidKey: true, debugInfo: { attempt: 1, httpStatus: a1.httpStatus } };
+  }
+
+  // Attempt 2 after delay
+  gwarn(`Attempt 1 failed (${a1.error}) — retrying in ${RETRY_DELAY_MS}ms…`);
+  await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+
+  const a2 = await callGeminiOnce(apiKey, policyText, GEMINI_MODELS[0], 2);
+  if (a2.result) {
+    return { result: a2.result, error: null, invalidKey: false, debugInfo: { attempt: 2, httpStatus: a2.httpStatus } };
+  }
+
+  gerr(`Both attempts failed. Attempt1: ${a1.error} | Attempt2: ${a2.error}`);
+  return {
+    result:    null,
+    error:     `Attempt 1: ${a1.error} | Attempt 2: ${a2.error}`,
+    invalidKey: false,
+    debugInfo: { attempt: 2, httpStatus: a2.httpStatus, attempt1Error: a1.error, attempt2Error: a2.error },
+  };
+}
+
+/**
+ * Analyze policy text with Gemini.
+ * Tries multiple models, and retries transient failures once per model.
+ * A 429 quota response immediately falls back to the next model.
+ * Returns { result, error, invalidKey, debugInfo }
  */
 async function analyzeWithGemini(apiKey, policyText) {
-  const { result, error, status } = await callGeminiOnce(apiKey, policyText);
+  glog(`analyzeWithGemini called. Text length: ${policyText.length}`);
+  glog(`Model fallback order: ${GEMINI_MODELS.join(' -> ')}`);
 
-  if (result) {
-    return { result, error: null, invalidKey: false };
+  const attempts = [];
+
+  for (const model of GEMINI_MODELS) {
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_MODEL; attempt++) {
+      const response = await callGeminiOnce(apiKey, policyText, model, attempt);
+      attempts.push({
+        model,
+        attempt,
+        httpStatus: response.httpStatus ?? null,
+        error: response.error ?? null,
+      });
+
+      if (response.result) {
+        return {
+          result: response.result,
+          error: null,
+          invalidKey: false,
+          debugInfo: { model, attempt, httpStatus: response.httpStatus, attempts },
+        };
+      }
+
+      if (response.invalidKey) {
+        return {
+          result: null,
+          error: response.error,
+          invalidKey: true,
+          debugInfo: { model, attempt, httpStatus: response.httpStatus, attempts },
+        };
+      }
+
+      if (response.status === 429) {
+        gwarn(`${model} quota exceeded (HTTP 429). Trying next model if available.`);
+        break;
+      }
+
+      if (!response.retryable || attempt === MAX_ATTEMPTS_PER_MODEL) {
+        gwarn(`${model} failed without more retries: ${response.error}`);
+        break;
+      }
+
+      gwarn(`${model} attempt ${attempt} failed (${response.error}). Retrying in ${RETRY_DELAY_MS}ms...`);
+      await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+    }
   }
 
-  if (status === 401 || status === 403) {
-    return { result: null, error: 'Your API key was rejected. Please update it in the options page.', invalidKey: true };
-  }
+  const error = attempts
+    .map(a => `${a.model} attempt ${a.attempt}: ${a.error || `HTTP ${a.httpStatus ?? '?'}`}`)
+    .join(' | ');
 
-  // Retry once after a delay
-  await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
-
-  const retry = await callGeminiOnce(apiKey, policyText);
-
-  if (retry.result) {
-    return { result: retry.result, error: null, invalidKey: false };
-  }
-
+  gerr(`All Gemini models failed. ${error}`);
   return {
     result: null,
-    error: retry.error || error || 'Analysis failed after retry',
+    error,
     invalidKey: false,
+    debugInfo: {
+      model: attempts.at(-1)?.model ?? null,
+      attempt: attempts.at(-1)?.attempt ?? null,
+      httpStatus: attempts.at(-1)?.httpStatus ?? null,
+      attempts,
+    },
   };
 }
 

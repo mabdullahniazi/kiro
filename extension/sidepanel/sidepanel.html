@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TermsLens</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+
+  <!-- ── Header ───────────────────────────────────────────────────── -->
+  <header class="header">
+    <div class="logo">
+      <span class="logo-icon">🔍</span>
+      <span class="logo-text">TermsLens</span>
+    </div>
+    <div class="header-actions">
+      <button id="toggle-debug-btn" class="icon-btn" title="Toggle debug log">🐛</button>
+      <a href="#" id="open-options" class="icon-btn" title="Settings">⚙️</a>
+    </div>
+  </header>
+
+  <!-- ── SCREEN: Setup (no API key) ───────────────────────────────── -->
+  <div id="screen-setup" class="screen hidden">
+    <div class="setup-wrap">
+      <div class="setup-icon">🔑</div>
+      <h2>Setup Required</h2>
+      <p>TermsLens needs a free Gemini API key to analyze policies.</p>
+      <ol class="setup-steps">
+        <li>Visit <strong>aistudio.google.com</strong></li>
+        <li>Sign in → click <strong>Get API Key</strong></li>
+        <li>Paste the key below</li>
+      </ol>
+      <div class="key-row">
+        <input type="password" id="setup-key-input"
+               placeholder="Paste your Gemini API key" autocomplete="off"/>
+        <button id="setup-save-btn" class="btn btn-primary">Save</button>
+      </div>
+      <p class="muted-note">Stored locally on your device. Never shared.</p>
+      <div id="setup-error" class="inline-error hidden"></div>
+    </div>
+  </div>
+
+  <!-- ── SCREEN: Idle (has key, waiting for user action) ──────────── -->
+  <div id="screen-idle" class="screen hidden">
+    <div class="idle-wrap">
+      <div class="idle-icon">🔍</div>
+      <h2>Ready to Analyze</h2>
+      <p id="idle-domain" class="idle-domain"></p>
+      <p>Click the button to scan this page for Terms of Service and Privacy Policy links, then analyze them with AI.</p>
+      <button id="analyze-btn" class="btn btn-primary btn-large">
+        Analyze This Page
+      </button>
+    </div>
+  </div>
+
+  <!-- ── SCREEN: Loading ──────────────────────────────────────────── -->
+  <div id="screen-loading" class="screen hidden">
+    <div class="loading-wrap">
+      <div class="spinner"></div>
+      <p id="loading-step" class="loading-step">Starting…</p>
+      <p class="loading-sub">Stay here — analysis runs in the background</p>
+
+      <!-- Live step tracker -->
+      <div id="step-tracker" class="step-tracker"></div>
+    </div>
+  </div>
+
+  <!-- ── SCREEN: No links found ───────────────────────────────────── -->
+  <div id="screen-no-links" class="screen hidden">
+    <div class="empty-wrap">
+      <div class="empty-icon">🔎</div>
+      <h2>No Policies Found</h2>
+      <p>No Terms of Service or Privacy Policy links were found on this page.</p>
+      <p class="muted-note">Try visiting the site's homepage or footer.</p>
+      <button id="no-links-retry-btn" class="btn btn-secondary">Try Again</button>
+    </div>
+  </div>
+
+  <!-- ── SCREEN: Error ────────────────────────────────────────────── -->
+  <div id="screen-error" class="screen hidden">
+    <div class="error-wrap">
+      <div class="error-icon">⚠️</div>
+      <h2>Something Went Wrong</h2>
+      <p id="error-message" class="error-message"></p>
+      <div class="error-btns">
+        <button id="error-retry-btn" class="btn btn-secondary">Try Again</button>
+        <button id="error-settings-btn" class="btn btn-ghost hidden">Update API Key</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SCREEN: Results ──────────────────────────────────────────── -->
+  <div id="screen-results" class="screen hidden">
+
+    <!-- Hero: domain + score -->
+    <div class="results-hero">
+      <div class="domain-row">
+        <span>🌐</span>
+        <span id="result-domain" class="domain-text"></span>
+      </div>
+      <div class="score-row">
+        <div id="score-ring" class="score-ring">
+          <span id="score-number" class="score-num"></span>
+          <span class="score-denom">/10</span>
+        </div>
+        <div class="score-meta">
+          <div id="score-label" class="score-label"></div>
+          <div class="score-caption">Privacy Score</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Docs analysed pills -->
+    <div id="docs-analysed" class="docs-row"></div>
+
+    <!-- Fetch failures warning -->
+    <div id="fetch-warnings" class="fetch-warnings hidden"></div>
+
+    <!-- Sections -->
+    <div class="results-body">
+
+      <section class="r-section">
+        <h3 class="r-title">📝 Summary</h3>
+        <p id="result-summary" class="r-text"></p>
+      </section>
+
+      <section class="r-section">
+        <h3 class="r-title">📦 What They Collect</h3>
+        <ul id="result-collected" class="tag-list"></ul>
+      </section>
+
+      <section class="r-section">
+        <h3 class="r-title">🤝 Who They Share With</h3>
+        <ul id="result-shared" class="tag-list"></ul>
+      </section>
+
+      <section class="r-section">
+        <h3 class="r-title r-title--danger">🚩 Red Flags</h3>
+        <ul id="result-flags" class="flag-list"></ul>
+      </section>
+
+      <section class="r-section">
+        <h3 class="r-title">✅ Your Rights</h3>
+        <ul id="result-rights" class="rights-list"></ul>
+      </section>
+
+      <section class="r-section">
+        <h3 class="r-title">💡 Recommendation</h3>
+        <p id="result-recommendation" class="recommendation"></p>
+      </section>
+
+    </div><!-- /results-body -->
+
+    <div class="results-footer">
+      <button id="reanalyze-btn" class="btn btn-ghost btn-sm">🔄 Re-analyze</button>
+    </div>
+
+  </div><!-- /screen-results -->
+
+  <!-- ── DEBUG LOG PANEL (always in DOM, toggled) ──────────────────── -->
+  <div id="debug-panel" class="debug-panel hidden">
+    <div class="debug-header">
+      <span>🐛 Debug Log</span>
+      <button id="clear-debug-btn" class="debug-clear-btn">Clear</button>
+    </div>
+    <div id="debug-entries" class="debug-entries"></div>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

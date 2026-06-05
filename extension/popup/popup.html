@@ -13,63 +13,79 @@
       <span class="logo-icon">🔍</span>
       <span class="logo-text">TermsLens</span>
     </div>
-    <a href="#" id="open-options" class="settings-btn" title="Settings">⚙️</a>
+    <div class="header-actions">
+      <button id="toggle-debug" class="icon-btn" title="Toggle debug log">🐛</button>
+      <a href="#" id="open-options" class="icon-btn" title="Settings">⚙️</a>
+    </div>
   </header>
 
-  <!-- Setup Screen (shown when no API key) -->
+  <!-- Debug Log Panel (hidden by default, toggle with 🐛 button) -->
+  <div id="debug-panel" class="debug-panel hidden">
+    <div class="debug-header">
+      <span class="debug-title">🐛 Debug Log</span>
+      <button id="copy-debug" class="debug-copy-btn">Copy</button>
+    </div>
+    <div id="debug-entries" class="debug-entries"></div>
+  </div>
+
+  <!-- ── Setup Screen ── -->
   <div id="screen-setup" class="screen hidden">
     <div class="setup-container">
       <div class="setup-icon">🔑</div>
       <h2>Setup Required</h2>
-      <p>To analyze policies with AI, you need a free Gemini API key.</p>
+      <p>Paste your free Gemini API key to start analyzing policies.</p>
       <ol class="setup-steps">
         <li>Go to <strong>aistudio.google.com</strong></li>
-        <li>Sign in and click <strong>Get API Key</strong></li>
-        <li>Copy and paste your key below</li>
+        <li>Sign in → <strong>Get API Key</strong> → <strong>Create API Key</strong></li>
+        <li>Paste it below</li>
       </ol>
       <div class="input-group">
-        <input type="password" id="inline-api-key" placeholder="Paste your Gemini API key here" autocomplete="off" />
-        <button id="inline-save-key" class="btn btn-primary">Save Key</button>
+        <input type="password" id="inline-api-key" placeholder="Paste Gemini API key…" autocomplete="off" />
+        <button id="inline-save-key" class="btn btn-primary">Save</button>
       </div>
-      <p class="setup-note">Your key is stored locally and never shared.</p>
+      <p class="setup-note">Stored locally on your device. Never sent anywhere except Google's API.</p>
       <div id="setup-error" class="error-msg hidden"></div>
     </div>
   </div>
 
-  <!-- Loading Screen -->
+  <!-- ── Loading Screen ── -->
   <div id="screen-loading" class="screen hidden">
     <div class="loading-container">
       <div class="spinner"></div>
-      <p class="loading-text" id="loading-message">Scanning for policy links...</p>
-      <p class="loading-sub">This usually takes 5–15 seconds</p>
+      <p class="loading-text" id="loading-message">Starting analysis…</p>
+      <p class="loading-sub">Usually takes 10–30 seconds</p>
+      <!-- Live step progress during loading -->
+      <div id="live-steps" class="live-steps"></div>
     </div>
   </div>
 
-  <!-- No Links Screen -->
+  <!-- ── No Links Screen ── -->
   <div id="screen-no-links" class="screen hidden">
     <div class="empty-container">
       <div class="empty-icon">🔎</div>
       <h2>No Policies Found</h2>
-      <p>No Terms of Service or Privacy Policy links were detected on this page.</p>
-      <p class="empty-sub">Try visiting a website's homepage or footer.</p>
+      <p>No Terms of Service or Privacy Policy links were found on this page.</p>
+      <p class="empty-sub">Try navigating to the homepage or footer of the site.</p>
       <button id="retry-btn" class="btn btn-secondary">Try Again</button>
     </div>
   </div>
 
-  <!-- Error Screen -->
+  <!-- ── Error Screen ── -->
   <div id="screen-error" class="screen hidden">
     <div class="error-container">
       <div class="error-icon">⚠️</div>
       <h2>Something Went Wrong</h2>
-      <p id="error-message-text" class="error-detail"></p>
-      <button id="error-retry-btn" class="btn btn-secondary">Try Again</button>
-      <button id="error-settings-btn" class="btn btn-ghost">Update API Key</button>
+      <pre id="error-message-text" class="error-detail"></pre>
+      <div class="error-actions">
+        <button id="error-retry-btn" class="btn btn-secondary">Try Again</button>
+        <button id="error-settings-btn" class="btn btn-ghost">Update API Key</button>
+      </div>
     </div>
   </div>
 
-  <!-- Results Screen -->
+  <!-- ── Results Screen ── -->
   <div id="screen-results" class="screen hidden">
-    <!-- Domain + Score Hero -->
+    <!-- Hero: domain + score -->
     <div class="results-hero">
       <div class="domain-row">
         <span class="domain-icon">🌐</span>
@@ -85,14 +101,15 @@
           <div class="score-title">Privacy Score</div>
         </div>
       </div>
+      <!-- Sources analysed -->
+      <div id="sources-row" class="sources-row hidden"></div>
     </div>
 
-    <!-- Extraction failures warning -->
+    <!-- Fetch warnings -->
     <div id="fetch-warnings" class="fetch-warnings hidden"></div>
 
-    <!-- Sections -->
+    <!-- Result sections -->
     <div class="results-body">
-
       <section class="result-section">
         <h3 class="section-title">📝 Summary</h3>
         <p id="result-summary" class="section-text"></p>
@@ -108,7 +125,7 @@
         <ul id="result-data-shared" class="tag-list"></ul>
       </section>
 
-      <section class="result-section" id="section-red-flags">
+      <section class="result-section">
         <h3 class="section-title red-flags-title">🚩 Red Flags</h3>
         <ul id="result-red-flags" class="flag-list"></ul>
       </section>
@@ -129,12 +146,12 @@
     </div>
   </div>
 
-  <!-- Default / Initial Screen -->
+  <!-- ── Default / Ready Screen ── -->
   <div id="screen-default" class="screen">
     <div class="default-container">
       <div class="default-icon">🔍</div>
       <h2>Ready to Analyze</h2>
-      <p>Click the button below to scan this page for Terms of Service and Privacy Policies.</p>
+      <p>Click below to scan this page for Terms of Service and Privacy Policies.</p>
       <button id="analyze-btn" class="btn btn-primary btn-large">Analyze This Page</button>
     </div>
   </div>

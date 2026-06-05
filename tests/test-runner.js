@@ -480,7 +480,7 @@ async function suite2() {
 
     // Live fetch test: Shopify ToS
     await test('fetches Shopify ToS page and extracts text (live)', async () => {
-      const { status, body } = await httpsGet(TEST_URL, 15000);
+      const { status, body } = await httpsGet(TEST_URL, 30000);
       assert.strictEqual(status, 200, `Expected HTTP 200, got ${status}`);
       assert(body.length > 10000, `Expected substantial HTML, got ${body.length} chars`);
 
@@ -488,6 +488,9 @@ async function suite2() {
       assert(text.length > 500, `Expected extracted text > 500 chars, got ${text.length}`);
       assert(text.includes('Shopify') || text.includes('Terms'), 'Extracted text should mention Shopify or Terms');
       console.log(`     ℹ️  Fetched ${body.length} bytes HTML → ${text.length} chars clean text`);
+      // Cache for later suites
+      globalThis._shopifyHtml = body;
+      globalThis._shopifyText = text;
     });
   });
 }
@@ -653,11 +656,17 @@ async function suite3() {
 async function suite4() {
   await suite('Suite 4: Gemini API — Live Call with Shopify ToS', async () => {
 
-    // First fetch Shopify ToS
+    // First fetch Shopify ToS (use cached if available from Suite 2)
     let shopifyText = '';
 
     await test('Step 4.1 — fetch Shopify ToS HTML', async () => {
-      const { status, body } = await httpsGet(TEST_URL, 20000);
+      // Reuse cached fetch from Suite 2 if available
+      if (globalThis._shopifyText) {
+        shopifyText = globalThis._shopifyText.slice(0, 30000);
+        console.log(`     ℹ️  Using cached Shopify text: ${shopifyText.length} chars`);
+        return;
+      }
+      const { status, body } = await httpsGet(TEST_URL, 30000);
       assert.strictEqual(status, 200, `HTTP status should be 200, got ${status}`);
       shopifyText = extractTextFromHtml(body).slice(0, 30000);
       assert(shopifyText.length > 1000, `Expected > 1000 chars of policy text, got ${shopifyText.length}`);
@@ -759,12 +768,15 @@ async function suite5() {
   await suite('Suite 5: Full Pipeline Integration Test (Shopify ToS + Mock Gemini)', async () => {
 
     await test('full pipeline: fetch → extract → analyze → score (mocked AI)', async () => {
-      // 1. Fetch Shopify ToS
-      const { status, body } = await httpsGet(TEST_URL, 15000);
-      assert.strictEqual(status, 200);
-
-      // 2. Extract text
-      const text = extractTextFromHtml(body).slice(0, 30000);
+      // Use cached Shopify HTML if available, otherwise fetch
+      let text;
+      if (globalThis._shopifyText) {
+        text = globalThis._shopifyText.slice(0, 30000);
+      } else {
+        const { status, body } = await httpsGet(TEST_URL, 30000);
+        assert.strictEqual(status, 200);
+        text = extractTextFromHtml(body).slice(0, 30000);
+      }
       assert(text.length > 500, 'Should extract meaningful text from Shopify ToS');
 
       // 3. Simulate Gemini returning MOCK_ANALYSIS_RESULT
