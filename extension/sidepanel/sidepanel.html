@@ -135,6 +135,22 @@
         </svg>
         Analyze This Page
       </button>
+
+      <!-- History suggestion — shown only if this domain was analyzed before -->
+      <div id="history-suggestion" class="history-suggestion hidden">
+        <div class="history-suggestion-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </div>
+        <div class="history-suggestion-body">
+          <p class="history-suggestion-text" id="history-suggestion-text">You analyzed this site before.</p>
+          <div class="history-suggestion-btns">
+            <button id="use-cached-btn" class="btn btn-secondary btn-sm">View saved results</button>
+            <button id="scan-fresh-btn" class="btn btn-ghost btn-sm">Scan fresh</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -210,6 +226,13 @@
           <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
         </svg>
         <span id="result-domain" class="domain-text"></span>
+        <!-- New scan button lives here, next to domain -->
+        <button id="new-scan-btn" class="btn-new-scan" title="Run a new analysis on this page">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/>
+          </svg>
+          New scan
+        </button>
       </div>
 
       <div class="score-row">
@@ -226,9 +249,8 @@
       </div>
     </div>
 
-    <!-- ② RECOMMENDATION — what the user should actually do -->
+    <!-- ② Results sections — FIRST ────────────────────────────────────── -->
     <div class="results-body">
-
       <section class="r-section r-section--action">
         <h3 class="r-title">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -239,7 +261,7 @@
         <p id="result-recommendation" class="recommendation"></p>
       </section>
 
-      <!-- ③ RED FLAGS — all of them, plain English, high-visibility -->
+      <!-- RED FLAGS — clickable, expand into drawer -->
       <section class="r-section" id="section-flags">
         <h3 class="r-title r-title--danger">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -252,7 +274,6 @@
         <ul id="result-flags" class="flag-list"></ul>
       </section>
 
-      <!-- ④ SUMMARY — expanded plain-English overview -->
       <section class="r-section">
         <h3 class="r-title">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -263,7 +284,6 @@
         <p id="result-summary" class="r-text"></p>
       </section>
 
-      <!-- ⑤ DATA COLLECTED + SHARED — stacked single column -->
       <section class="r-section r-section--two-col">
         <div class="two-col-block">
           <h3 class="r-title">
@@ -287,7 +307,6 @@
         </div>
       </section>
 
-      <!-- ⑥ YOUR RIGHTS -->
       <section class="r-section">
         <h3 class="r-title">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -295,11 +314,10 @@
           </svg>
           What you are allowed to do
         </h3>
-        <p class="section-intro">These are the rights you have under this policy — things you can ask the company to do:</p>
+        <p class="section-intro">These are rights you have — things you can ask the company to do:</p>
         <ul id="result-rights" class="rights-list"></ul>
       </section>
 
-      <!-- ⑦ DOCS ANALYSED + WARNINGS — least important, at the bottom -->
       <section class="r-section r-section--meta">
         <h3 class="r-title r-title--muted">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -311,8 +329,41 @@
         <div id="docs-analysed" class="docs-row"></div>
         <div id="fetch-warnings" class="fetch-warnings hidden"></div>
       </section>
-
     </div><!-- /results-body -->
+
+    <!-- ── Q&A Chat — BELOW results ────────────────────────────────────── -->
+    <div class="chat-panel">
+      <div class="chat-header">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span class="chat-header-label">Ask about this policy</span>
+        <span id="chat-model-badge" class="chat-model-badge hidden"></span>
+        <span class="chat-header-hint">Policy questions only</span>
+      </div>
+
+      <!-- Suggested quick questions -->
+      <div class="chat-suggestions" id="chat-suggestions">
+        <button class="chat-suggestion-btn" data-q="What happens to my data if I delete my account?">Delete my account?</button>
+        <button class="chat-suggestion-btn" data-q="Can they share my personal data with advertisers?">Share with advertisers?</button>
+        <button class="chat-suggestion-btn" data-q="What data do they collect about me when I browse?">What do they collect?</button>
+        <button class="chat-suggestion-btn" data-q="Do I have the right to download my data?">Can I download my data?</button>
+      </div>
+
+      <!-- Message thread -->
+      <div class="chat-messages" id="chat-messages"></div>
+
+      <!-- Input -->
+      <div class="chat-input-row">
+        <input type="text" id="chat-input" placeholder="Ask something about this policy…" autocomplete="off" maxlength="300"/>
+        <button id="chat-send-btn" class="chat-send-btn" title="Send" aria-label="Send question">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </div>
+    </div>
 
     <div class="results-footer">
       <button id="reanalyze-btn" class="btn btn-ghost btn-sm">

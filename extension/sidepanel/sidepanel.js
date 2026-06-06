@@ -328,40 +328,6 @@ function renderRightsList(id, items) {
   });
 }
 
-function renderFlags(flags) {
-  const el    = $('result-flags');
-  const intro = $('flags-intro');
-  if (!el) return;
-  el.innerHTML = '';
-
-  if (intro) intro.textContent = flagsIntro(flags?.length ?? 0);
-
-  if (!Array.isArray(flags) || flags.length === 0) {
-    const li = document.createElement('li');
-    li.className = 'empty-list-item';
-    li.textContent = 'No major concerns detected — this policy looks relatively clean.';
-    el.appendChild(li);
-    return;
-  }
-
-  flags.forEach(f => {
-    const li = document.createElement('li');
-    li.className = 'flag-item';
-    li.innerHTML = `
-      <span class="flag-bullet">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-        </svg>
-      </span>
-      <div class="flag-body">
-        <span class="flag-category">${esc(f.category || 'Risk')}</span>
-        <p class="flag-desc">${esc(f.description || String(f))}</p>
-      </div>
-    `;
-    el.appendChild(li);
-  });
-}
 
 function renderDocs(linksFound) {
   const el = $('docs-analysed');
@@ -417,6 +383,10 @@ function renderResults(data) {
   renderTagList('result-collected', analysis.dataCollected,  'Nothing specific was mentioned.');
   renderTagList('result-shared',    analysis.dataSharedWith, 'No third parties mentioned.');
   renderRightsList('result-rights', analysis.userRights);
+
+  // Store context for chat (once per scan), reset chat thread
+  setChatContext({ ...data, modelUsed: data.modelUsed || '' });
+  clearChat();
 
   showScreen('results');
 }
@@ -501,7 +471,13 @@ async function init() {
   await updateIdleDomain();
   try {
     const res = await sendMsg({ action: 'CHECK_API_KEY' });
-    showScreen(res?.hasKey ? 'idle' : 'setup');
+    if (res?.hasKey) {
+      showScreen('idle');
+      // Check if we have a prior result for this domain and suggest it
+      await checkHistorySuggestion();
+    } else {
+      showScreen('setup');
+    }
   } catch {
     showScreen('idle');
   }
@@ -575,7 +551,366 @@ async function settingsRemoveKey() {
   }
 }
 
-// ─── History: open / close / clear ────────────────────────────────────────────
+// ─── Chat state ───────────────────────────────────────────────────────────────
+let chatPolicyContext  = '';   // injected once as the first system turn
+let chatDomain         = '';
+let chatModel          = '';   // model that succeeded for this scan session
+let chatContextInjected = false; // ensure we only inject context once per scan
+
+/**
+ * Called once after a successful scan. Stores context for the chat session.
+ * Records which Gemini model succeeded so we reuse it for all chat turns.
+ */
+function setChatContext(data) {
+  chatDomain  = data.domain || '';
+  chatModel   = data.modelUsed || '';   // passed from background
+  chatContextInjected = false;           // reset so next scan gets a fresh injection
+
+  const a = data.analysisResult || {};
+  chatPolicyContext = [
+    `This is the privacy analysis result for ${chatDomain}.`,
+    `Summary: ${a.summary || 'Not available.'}`,
+    `Data collected: ${(a.dataCollected || []).join(', ') || 'None listed.'}`,
+    `Data shared with: ${(a.dataSharedWith || []).join(', ') || 'None listed.'}`,
+    `Red flags: ${(a.redFlags || []).join('; ') || 'None found.'}`,
+    `User rights: ${(a.userRights || []).join('; ') || 'None listed.'}`,
+    `Recommendation: ${a.recommendation || 'Not available.'}`,
+  ].join('\n');
+
+  // Update the model badge in the chat header
+  const badge = $('chat-model-badge');
+  if (badge) {
+    if (chatModel) {
+      badge.textContent = chatModel;
+      badge.classList.remove('hidden');
+    } else {
+      badge.classList.add('hidden');
+    }
+  }
+}
+
+function clearChat() {
+  const msgs = $('chat-messages');
+  if (msgs) msgs.innerHTML = '';
+  $('chat-suggestions')?.classList.remove('hidden');
+  chatContextInjected = false;
+}
+
+function appendChatMessage(role, text, isGuard = false, modelLabel = '') {
+  const msgs = $('chat-messages');
+  if (!msgs) return;
+
+  $('chat-suggestions')?.classList.add('hidden');
+
+  const wrapper = document.createElement('div');
+  wrapper.className = `chat-msg chat-msg--${role}${isGuard ? ' chat-msg--guard' : ''}`;
+
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-bubble';
+  bubble.textContent = text;
+
+  const meta = document.createElement('div');
+  meta.className = 'chat-ts';
+  const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  meta.textContent = modelLabel ? `${timeStr} · ${modelLabel}` : timeStr;
+
+  wrapper.appendChild(bubble);
+  wrapper.appendChild(meta);
+  msgs.appendChild(wrapper);
+  msgs.scrollTop = msgs.scrollHeight;
+  return wrapper;
+}
+
+function appendLoadingBubble() {
+  const msgs = $('chat-messages');
+  if (!msgs) return null;
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'chat-msg chat-msg--ai';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-bubble chat-bubble--loading';
+  bubble.innerHTML = `<span class="chat-dot"></span><span class="chat-dot"></span><span class="chat-dot"></span>`;
+
+  wrapper.appendChild(bubble);
+  msgs.appendChild(wrapper);
+  msgs.scrollTop = msgs.scrollHeight;
+  return wrapper;
+}
+
+async function sendChatQuestion(question) {
+  if (!question.trim()) return;
+  if (!chatPolicyContext) {
+    appendChatMessage('ai', 'Please run an analysis first so I have a policy to answer questions about.');
+    return;
+  }
+
+  const sendBtn = $('chat-send-btn');
+  const input   = $('chat-input');
+  if (sendBtn) sendBtn.disabled = true;
+  if (input)   input.value = '';
+
+  appendChatMessage('user', question);
+  const loadingEl = appendLoadingBubble();
+
+  try {
+    // ── Get API key directly from storage ───────────────────────────────────
+    const apiKey = await new Promise(resolve =>
+      chrome.storage.local.get('geminiApiKey', d => resolve((d.geminiApiKey || '').trim() || null))
+    );
+
+    if (!apiKey) {
+      loadingEl?.remove();
+      appendChatMessage('ai', 'No API key configured. Please add it in Settings.', false);
+      return;
+    }
+
+    // ── Guardrail — only block clearly off-topic requests ───────────────────
+    const BLOCKED = [
+      /\bweather\b|\bforecast\b/i,
+      /\brecipe\b|\bcook(ing)?\b/i,
+      /\bsports? score\b|\bnfl\b|\bnba\b/i,
+      /\bbitcoin\b|\bcrypto\b/i,
+      /\bjoke\b|\bfunny\b|\bmeme\b/i,
+    ];
+
+    if (BLOCKED.some(p => p.test(question))) {
+      loadingEl?.remove();
+      appendChatMessage(
+        'ai',
+        `I can only answer questions about ${chatDomain || 'this site'}'s policy. Try asking about data collection, your rights, or what a specific concern means.`,
+        true
+      );
+      return;
+    }
+
+    // ── Build prompt ─────────────────────────────────────────────────────────
+    const systemPart = chatContextInjected
+      ? `You are a plain-English legal assistant answering questions about ${chatDomain || 'a website'}'s privacy policy. Keep answers under 150 words. Be direct and specific.\n\n`
+      : `You are a plain-English legal assistant. Here is the privacy analysis for ${chatDomain || 'a website'}:\n\n${chatPolicyContext}\n\nUse this context to answer questions. Plain English, under 150 words. If a question is unrelated to this policy, politely say you can only answer policy questions.\n\n`;
+
+    const fullPrompt = `${systemPart}Question: ${question}`;
+
+    // Only use models confirmed to work with this API key
+    const MODELS = [
+      chatModel || 'gemini-2.0-flash',
+      'gemini-2.0-flash',
+      'gemini-2.5-flash',
+    ].filter((m, i, arr) => arr.indexOf(m) === i);
+
+    let answer    = null;
+    let usedModel = '';
+    let lastError = '';
+
+    for (const tryModel of MODELS) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(tryModel)}:generateContent?key=${apiKey}`;
+      try {
+        const res = await fetch(url, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            contents: [{ parts: [{ text: fullPrompt }] }],
+            generationConfig: { temperature: 0.2, maxOutputTokens: 512 },
+          }),
+        });
+
+        if (res.status === 401 || res.status === 403) {
+          lastError = 'API key rejected.';
+          break;  // no point trying other models
+        }
+
+        if (res.status === 429) {
+          lastError = `${tryModel}: quota exceeded`;
+          continue;
+        }
+
+        if (!res.ok) {
+          const errBody = await res.text().catch(() => '');
+          lastError = `${tryModel}: HTTP ${res.status} — ${errBody.slice(0, 100)}`;
+          console.error('[TermsLens:chat]', lastError);
+          continue;
+        }
+
+        const data = await res.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+        if (!text) {
+          const reason = data?.candidates?.[0]?.finishReason || 'empty';
+          lastError = `${tryModel}: empty response (${reason})`;
+          console.warn('[TermsLens:chat]', lastError);
+          continue;
+        }
+
+        answer    = text;
+        usedModel = tryModel;
+        break;
+
+      } catch (fetchErr) {
+        lastError = `${tryModel}: ${fetchErr.message}`;
+        console.error('[TermsLens:chat] fetch error:', fetchErr.message);
+        continue;
+      }
+    }
+
+    loadingEl?.remove();
+
+    if (!answer) {
+      appendChatMessage('ai', `Sorry, could not get an answer. ${lastError ? `(${lastError})` : 'Please try again.'}`);
+      return;
+    }
+
+    // Mark context as injected after first successful answer
+    if (!chatContextInjected) chatContextInjected = true;
+
+    const displayModel = usedModel.replace('gemini-', 'Gemini ');
+    appendChatMessage('ai', answer, false, displayModel);
+
+    // Lock in this model for the whole session
+    if (!chatModel && usedModel) {
+      chatModel = usedModel;
+      const badge = $('chat-model-badge');
+      if (badge) { badge.textContent = displayModel; badge.classList.remove('hidden'); }
+    }
+
+  } catch (err) {
+    loadingEl?.remove();
+    console.error('[TermsLens:chat] unexpected error:', err);
+    appendChatMessage('ai', `Error: ${err.message}`);
+  } finally {
+    if (sendBtn) sendBtn.disabled = false;
+    if (input)   input.focus();
+  }
+}
+
+// ─── Flag drawer — click a red flag to expand/collapse detail ─────────────────
+function renderFlags(flags) {
+  const el    = $('result-flags');
+  const intro = $('flags-intro');
+  if (!el) return;
+  el.innerHTML = '';
+
+  if (intro) intro.textContent = flagsIntro(flags?.length ?? 0);
+
+  if (!Array.isArray(flags) || flags.length === 0) {
+    const li = document.createElement('li');
+    li.className = 'empty-list-item';
+    li.textContent = 'No major concerns detected — this policy looks relatively clean.';
+    el.appendChild(li);
+    return;
+  }
+
+  flags.forEach((f, idx) => {
+    const li = document.createElement('li');
+    li.className = 'flag-item flag-item--collapsible';
+    li.setAttribute('role', 'button');
+    li.setAttribute('aria-expanded', 'false');
+    li.setAttribute('tabindex', '0');
+    li.dataset.idx = String(idx);
+
+    const desc = f.description || String(f);
+    // Build a more detailed explanation for the drawer
+    const detail = `What this means for you: ${desc} If you are concerned about this, consider reaching out to the company to ask how this affects you specifically, or look for an opt-out option in your account settings.`;
+
+    li.innerHTML = `
+      <div class="flag-row">
+        <span class="flag-bullet">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </span>
+        <div class="flag-body">
+          <span class="flag-category">${esc(f.category || 'Risk')}</span>
+          <p class="flag-desc">${esc(desc)}</p>
+        </div>
+        <span class="flag-chevron" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </span>
+      </div>
+      <div class="flag-drawer" aria-hidden="true">
+        <p class="flag-drawer-text">${esc(detail)}</p>
+        <button class="flag-ask-btn" data-q="Explain in detail: ${esc(desc)}">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          Ask AI to explain this
+        </button>
+      </div>
+    `;
+
+    // Toggle drawer on click / Enter / Space
+    const toggle = () => {
+      const isOpen = li.getAttribute('aria-expanded') === 'true';
+      li.setAttribute('aria-expanded', String(!isOpen));
+      const drawer = li.querySelector('.flag-drawer');
+      if (drawer) drawer.setAttribute('aria-hidden', String(isOpen));
+    };
+
+    li.addEventListener('click', (e) => {
+      // If the "Ask AI" button was clicked, handle separately
+      if (e.target.closest('.flag-ask-btn')) return;
+      toggle();
+    });
+    li.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+    });
+
+    // "Ask AI to explain this" button scrolls to chat and pre-fills the question
+    li.querySelector('.flag-ask-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const q = `Explain this concern in more detail: ${desc}`;
+      const chatInput = $('chat-input');
+      if (chatInput) {
+        chatInput.value = q;
+        chatInput.focus();
+        // Scroll chat panel into view
+        document.querySelector('.chat-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+
+    el.appendChild(li);
+  });
+}
+async function checkHistorySuggestion() {
+  const tab = await getActiveTab();
+  if (!tab?.url) return;
+  let host = '';
+  try { host = new URL(tab.url).hostname; } catch { return; }
+  if (!host) return;
+
+  const entries = await historyLoad();
+  const match   = entries.find(e => e.domain === host);
+  if (!match) return;
+
+  const suggEl  = $('history-suggestion');
+  const textEl  = $('history-suggestion-text');
+  if (!suggEl || !textEl) return;
+
+  textEl.textContent = `You analyzed ${host} ${formatDate(match.analysedAt)} — score was ${match.score}/10 (${match.label}). Use that or run a fresh scan?`;
+  suggEl.classList.remove('hidden');
+
+  // Attach handlers each time (remove old ones first)
+  const useBtn  = $('use-cached-btn');
+  const freshBtn = $('scan-fresh-btn');
+
+  const newUse = useBtn?.cloneNode(true);
+  const newFresh = freshBtn?.cloneNode(true);
+  useBtn?.parentNode?.replaceChild(newUse, useBtn);
+  freshBtn?.parentNode?.replaceChild(newFresh, freshBtn);
+
+  newUse?.addEventListener('click', () => {
+    renderResults(match);
+    setChatContext(match);
+    clearChat();
+    showScreen('results');
+  });
+  newFresh?.addEventListener('click', () => {
+    suggEl.classList.add('hidden');
+    startAnalysis();
+  });
+}
 async function openHistory() {
   for (const s of SCREENS) {
     const el = $(`screen-${s}`);
@@ -638,6 +973,30 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!confirm('Clear all saved history? This cannot be undone.')) return;
     await historyClearAll();
     await renderHistoryScreen();
+  });
+
+  // ── New scan button (in results hero) ─────────────────────────────────────
+  $('new-scan-btn')?.addEventListener('click', startAnalysis);
+
+  // ── Chat: send button + Enter key ─────────────────────────────────────────
+  $('chat-send-btn')?.addEventListener('click', () => {
+    const q = ($('chat-input')?.value || '').trim();
+    if (q) sendChatQuestion(q);
+  });
+  $('chat-input')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      const q = ($('chat-input')?.value || '').trim();
+      if (q) sendChatQuestion(q);
+    }
+  });
+
+  // ── Chat: suggestion chips ────────────────────────────────────────────────
+  document.querySelectorAll('.chat-suggestion-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const q = btn.dataset.q;
+      if (q) sendChatQuestion(q);
+    });
   });
 
   init();

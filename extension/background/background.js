@@ -255,6 +255,7 @@ async function runAnalysisPipeline(tab) {
     redFlags,
     failures,
     linksFound: perDoc.map(d => ({ type: d.type, url: d.url, source: d.source })),
+    modelUsed: geminiDebug?.model || '',   // which model succeeded — used by chat
     debugLog: entries,
     totalMs,
   };
@@ -331,6 +332,108 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.action === 'CHECK_API_KEY') {
     getApiKey().then(key => sendResponse({ hasKey: !!key }));
     return true;
+  }
+
+  if (msg.action === 'CHAT_QUESTION') {
+    // Run entirely async — keep return true to hold the message port open
+    (async () => {
+      const { question, context, domain, model } = msg;
+
+      // ── Guardrail ────────────────────────────────────────────────────────
+      const BLOCKED = [
+        /weather|forecast|temperature/i,
+        /recipe|cook|ingredient|meal/i,
+        /sport|score|nfl|nba|soccer|football|cricket/i,
+        /stock|crypto|bitcoin|ethereum|invest/i,
+        /\bnews\b|headline|election|president/i,
+        /joke|funny|meme/i,
+      ];
+      const POLICY_KEYWORDS = /privacy|policy|terms|data|collect|share|store|retain|delete|right|gdpr|ccpa|cookie|track|personal|information|account|user|clause|flag|concern|explain/i;
+
+      const isBlocked      = BLOCKED.some(p => p.test(question));
+      const isPolicyRelated = POLICY_KEYWORDS.test(question);
+
+      if (isBlocked || (!isPolicyRelated && question.trim().length > 20)) {
+        sendResponse({
+          blocked: true,
+          message: `I can only answer questions about ${domain || 'this site'}'s privacy policy and terms. Try asking about data collection, sharing, your rights, or what a specific concern means.`,
+        });
+        return;
+      }
+
+      const apiKey = await getApiKey();
+      if (!apiKey) {
+        sendResponse({ blocked: false, answer: 'No API key configured. Please add it in Settings.' });
+        return;
+      }
+
+      // Prefer the model that succeeded during the analysis scan
+      const MODELS = [
+        model || 'gemini-2.0-flash',
+        'gemini-2.0-flash',
+        'gemini-1.5-flash',
+      ].filter((m, i, arr) => arr.indexOf(m) === i);
+
+      // Context is injected once (first message of session); subsequent calls pass null
+      const systemPreamble = context
+        ? `You are a plain-English legal assistant. The user just saw these analysis results for ${domain || 'a website'}:\n\n${context}\n\nAnswer all questions based only on this policy context. Plain English, no legal jargon, under 150 words. Never discuss unrelated topics.\n\n`
+        : `You are a plain-English legal assistant answering questions about ${domain || 'a website'}'s privacy policy. Plain English, under 150 words, policy-relevant only.\n\n`;
+
+      const fullPrompt = `${systemPreamble}User question: "${question}"`;
+
+      for (const tryModel of MODELS) {
+        const chatUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(tryModel)}:generateContent`;
+        try {
+          const ctrl  = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 25000);
+
+          const res = await fetch(`${chatUrl}?key=${apiKey}`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({
+              contents: [{ parts: [{ text: fullPrompt }] }],
+              generationConfig: { temperature: 0.2, maxOutputTokens: 512 },
+            }),
+            signal: ctrl.signal,
+          });
+          clearTimeout(timer);
+
+          if (res.status === 401 || res.status === 403) {
+            sendResponse({ blocked: false, answer: 'API key rejected. Please update it in Settings.' });
+            return;
+          }
+
+          if (res.status === 429) {
+            blog(`Chat: ${tryModel} quota exceeded, trying next model`);
+            continue;
+          }
+
+          if (!res.ok) {
+            blog(`Chat: ${tryModel} returned HTTP ${res.status}, trying next`);
+            continue;
+          }
+
+          const data = await res.json();
+          const answer = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+          if (!answer) {
+            blog(`Chat: ${tryModel} returned empty answer, trying next`);
+            continue;
+          }
+
+          blog(`Chat answered by ${tryModel}`);
+          sendResponse({ blocked: false, answer, model: tryModel });
+          return;
+        } catch (e) {
+          blog(`Chat model ${tryModel} threw: ${e.message}`);
+          continue;
+        }
+      }
+
+      sendResponse({ blocked: false, answer: 'Could not get an answer right now. Please try again.' });
+    })();
+
+    return true;  // keep message port open while async work runs
   }
 });
 
