@@ -29,24 +29,33 @@ function isRetryableStatus(status) {
 
 // ─── Prompt ───────────────────────────────────────────────────────────────────
 function buildPrompt(policyText) {
-  return `You are a privacy-law analyst. Read the policy text below and reply with ONLY a valid JSON object — absolutely no markdown, no code fences, no explanation.
+  return `You are a privacy-law analyst helping everyday people understand legal policies. Read the policy text and reply with ONLY a valid JSON object — no markdown, no code fences, no explanation.
 
-Required JSON schema (all fields mandatory):
+Required JSON schema (ALL fields mandatory):
 {
-  "summary":        "2–3 plain-English sentences describing what this policy means for the user",
-  "dataCollected":  ["array of specific data types the company collects"],
-  "dataSharedWith": ["array of third parties / categories the data is shared with"],
-  "redFlags":       ["array of practices that could harm or surprise the user, in plain English"],
-  "userRights":     ["array of rights the user has under this policy"],
+  "summaryPoints": [
+    "What the service does with your personal data day-to-day (be specific)",
+    "Whether they sell or share data with advertisers or third parties for profit",
+    "How long they keep your data, and what happens when you delete your account",
+    "Whether they track you across other websites or apps (cookies, pixels, etc)",
+    "Any automatic subscription renewals, billing terms, or cancellation restrictions",
+    "Whether they can change these terms without telling you first",
+    "Any limits on what you can do or post, and what happens if you break the rules"
+  ],
+  "dataCollected":  ["specific data types listed in the policy, e.g. 'Email address', 'IP address', 'Browsing history', 'Payment card details', 'Location data'"],
+  "dataSharedWith": ["specific third parties or categories named in the policy, e.g. 'Google Analytics', 'Advertising partners', 'Payment processors', 'Law enforcement'"],
+  "redFlags":       ["each entry must start with 'They ' and describe a specific concerning practice found in the policy, e.g. 'They can share your browsing data with advertising networks without asking you', 'They keep your data even after you delete your account'"],
+  "userRights":     ["specific rights the user has, e.g. 'You can request deletion of your personal data', 'You can download your data', 'You can opt out of targeted advertising'"],
   "score":          7,
-  "recommendation": "One plain-English sentence telling the user what to do"
+  "recommendation": "One direct sentence — tell the user whether to use this service and what specific action to take."
 }
 
-Constraints:
-- score must be an INTEGER 0–10 (10 = best privacy, 0 = worst)
-- Plain English only — no legal jargon
-- Arrays may be empty [] but must be present
-- Output ONLY the JSON object, nothing else
+CRITICAL RULES:
+- summaryPoints must have EXACTLY 7 entries, one for each topic listed above. Be specific to THIS policy — no generic sentences.
+- score: INTEGER 0–10 only
+- All text in plain everyday English — no legal jargon
+- Be SPECIFIC — extract actual practices from the policy text, not generic descriptions
+- Output ONLY the JSON object
 
 Policy text:
 ${policyText.slice(0, MAX_INPUT_CHARS)}`.trim();

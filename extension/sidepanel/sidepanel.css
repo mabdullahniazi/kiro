@@ -461,6 +461,33 @@ a:hover { text-decoration: underline; }
 
 .r-text { font-size: 13.5px; color: var(--text); line-height: 1.7; }
 
+/* Summary rendered as bullet list when multi-line */
+.summary-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 0;
+}
+.summary-list li {
+  font-size: 13.5px;
+  color: var(--text);
+  line-height: 1.6;
+  padding-left: 16px;
+  position: relative;
+}
+.summary-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 9px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--blue);
+  flex-shrink: 0;
+}
+
 /* Tags */
 .tag-list { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
 .tag-list li {
@@ -560,9 +587,27 @@ a:hover { text-decoration: underline; }
 
 .recommendation { font-size: 14px; font-weight: 500; color: var(--blue); line-height: 1.65; }
 
-/* Docs row */
-.docs-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+/* Docs row — with clickable links */
+.docs-row { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
 .docs-row:empty { display: none; }
+
+.doc-link-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.doc-url-link {
+  font-size: 11.5px;
+  color: var(--blue);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.doc-url-link:hover { text-decoration: underline; }
 
 .doc-pill {
   display: inline-flex;

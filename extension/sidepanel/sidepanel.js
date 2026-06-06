@@ -335,11 +335,24 @@ function renderDocs(linksFound) {
   el.innerHTML = '';
   if (!Array.isArray(linksFound) || linksFound.length === 0) return;
   linksFound.forEach(doc => {
-    const span = document.createElement('span');
-    span.className = `doc-pill doc-pill-${doc.source || 'fetched'}`;
-    span.textContent = `${String(doc.type || 'policy').replace(/-/g,' ')} · ${doc.source || 'fetched'}`;
-    span.title = doc.url || '';
-    el.appendChild(span);
+    const wrapper = document.createElement('div');
+    wrapper.className = 'doc-link-row';
+
+    const pill = document.createElement('span');
+    pill.className = `doc-pill doc-pill-${doc.source || 'fetched'}`;
+    pill.textContent = String(doc.type || 'policy').replace(/-/g, ' ');
+
+    const link = document.createElement('a');
+    link.href   = doc.url || '#';
+    link.target = '_blank';
+    link.rel    = 'noopener noreferrer';
+    link.className = 'doc-url-link';
+    link.textContent = doc.url || '';
+    link.title = doc.url || '';
+
+    wrapper.appendChild(pill);
+    wrapper.appendChild(link);
+    el.appendChild(wrapper);
   });
 }
 
@@ -373,13 +386,28 @@ function renderResults(data) {
   renderDocs(data.linksFound);
   renderWarnings(data.failures);
 
-  $('result-recommendation').textContent =
-    analysis.recommendation || 'Review the policy details below before using this service.';
+  // Render summary as bullet points (prompt uses \n to separate points)
+  const summaryEl = $('result-summary');
+  if (summaryEl) {
+    summaryEl.innerHTML = '';
+    const raw = analysis.summary || 'No summary was returned.';
+    const lines = raw.split(/\n+/).map(l => l.trim()).filter(Boolean);
+    if (lines.length <= 1) {
+      summaryEl.textContent = raw;
+    } else {
+      const ul = document.createElement('ul');
+      ul.className = 'summary-list';
+      lines.forEach(line => {
+        const li = document.createElement('li');
+        // Strip leading number/bullet if present e.g. "1)" or "•"
+        li.textContent = line.replace(/^[\d]+[.)]\s*/, '').replace(/^[•\-]\s*/, '');
+        ul.appendChild(li);
+      });
+      summaryEl.appendChild(ul);
+    }
+  }
 
   renderFlags(data.redFlags);
-
-  $('result-summary').textContent = analysis.summary || 'No summary was returned.';
-
   renderTagList('result-collected', analysis.dataCollected,  'Nothing specific was mentioned.');
   renderTagList('result-shared',    analysis.dataSharedWith, 'No third parties mentioned.');
   renderRightsList('result-rights', analysis.userRights);
