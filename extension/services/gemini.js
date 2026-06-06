@@ -12,7 +12,6 @@ const GEMINI_API_BASE   = 'https://generativelanguage.googleapis.com/v1beta/mode
 const GEMINI_MODELS     = [
   'gemini-2.5-flash',
   'gemini-2.5-flash-lite',
-  'gemini-2.0-flash',
 ];
 const REQUEST_TIMEOUT   = 30000;   // 30 s — Gemini can be slow on long text
 const MAX_INPUT_CHARS   = 28000;   // stay within Gemini token limits

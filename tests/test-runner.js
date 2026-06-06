@@ -18,7 +18,7 @@ const https = require('https');
 // Config — update API key here if you have a valid one
 // ─────────────────────────────────────────────────────────────────────────────
 const API_KEY = process.env.GEMINI_API_KEY || 'REDACTED_GEMINI_API_KEY';
-const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 const TEST_URL = 'https://www.shopify.com/legal/terms';
 

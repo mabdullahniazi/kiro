@@ -8,6 +8,8 @@
 const SCREENS = ['setup', 'idle', 'loading', 'no-links', 'error', 'results', 'history', 'settings'];
 const HISTORY_KEY    = 'termslens_history';
 const HISTORY_MAX    = 50;   // max entries stored
+const CHAT_HISTORY_MAX = 80;
+const CHAT_TEXT_MAX    = 4000;
 
 const ERROR_MESSAGES = {
   NO_API_KEY:        'No API key configured. Add your Gemini API key to continue.',
@@ -34,6 +36,8 @@ const LOADING_STEPS = [
 let loadingTimer       = null;
 let loadingIdx         = 0;
 let lastResultData     = null;
+let activeHistoryId    = null;
+let deletedHistoryIds  = new Set();
 let screenBeforeSecond = 'idle'; // screen to return to from history/settings
 
 // ─── DOM helpers ──────────────────────────────────────────────────────────────
@@ -83,6 +87,20 @@ async function historySave(entries) {
   await storageSet(HISTORY_KEY, entries);
 }
 
+function sanitizeChatMessages(messages) {
+  if (!Array.isArray(messages)) return [];
+  return messages
+    .filter(m => m && (m.role === 'user' || m.role === 'ai') && typeof m.text === 'string')
+    .slice(-CHAT_HISTORY_MAX)
+    .map(m => ({
+      role: m.role,
+      text: m.text.slice(0, CHAT_TEXT_MAX),
+      isGuard: !!m.isGuard,
+      modelLabel: typeof m.modelLabel === 'string' ? m.modelLabel.slice(0, 80) : '',
+      ts: Number.isFinite(m.ts) ? m.ts : Date.now(),
+    }));
+}
+
 /**
  * Append a new analysis result to history.
  * Deduplicates by domain (most recent wins) and caps at HISTORY_MAX.
@@ -108,11 +126,16 @@ async function historyAppend(data) {
     analysisResult: data.analysisResult ?? {},
     scoreData:      data.scoreData ?? {},
     failures:       data.failures ?? [],
+    modelUsed:      data.modelUsed ?? '',
+    chatMessages:   sanitizeChatMessages(data.chatMessages),
   };
 
   let entries = await historyLoad();
 
   // Remove any existing entry for same domain (we'll put the new one at top)
+  entries
+    .filter(e => e.domain === entry.domain)
+    .forEach(e => deletedHistoryIds.add(e.id));
   entries = entries.filter(e => e.domain !== entry.domain);
 
   // Prepend newest entry
@@ -122,16 +145,45 @@ async function historyAppend(data) {
   if (entries.length > HISTORY_MAX) entries = entries.slice(0, HISTORY_MAX);
 
   await historySave(entries);
+  return entry;
 }
 
 async function historyDelete(id) {
+  deletedHistoryIds.add(id);
   let entries = await historyLoad();
   entries = entries.filter(e => e.id !== id);
   await historySave(entries);
+  if (activeHistoryId === id) activeHistoryId = null;
+  if (lastResultData?.id === id) lastResultData = null;
 }
 
 async function historyClearAll() {
+  const entries = await historyLoad();
+  entries.forEach(e => deletedHistoryIds.add(e.id));
   await historySave([]);
+  activeHistoryId = null;
+  lastResultData = null;
+}
+
+async function historyUpdateChat(id, messages) {
+  if (!id) return;
+  if (deletedHistoryIds.has(id)) return;
+  const entries = await historyLoad();
+  const idx = entries.findIndex(e => e.id === id);
+  if (idx === -1) return;
+
+  const chatMessages = sanitizeChatMessages(messages);
+  entries[idx] = {
+    ...entries[idx],
+    chatMessages,
+    chatUpdatedAt: Date.now(),
+  };
+  if (deletedHistoryIds.has(id)) return;
+  await historySave(entries);
+
+  if (lastResultData?.id === id) {
+    lastResultData = { ...lastResultData, chatMessages };
+  }
 }
 
 // ─── History: render ──────────────────────────────────────────────────────────
@@ -212,7 +264,6 @@ async function renderHistoryScreen() {
     li.addEventListener('click', (e) => {
       if (e.target.closest('.history-del-btn')) return; // don't trigger on delete button
       renderResults(entry);
-      showScreen('results');
       // update the "back" target so results footer re-analyze goes back correctly
     });
 
@@ -369,6 +420,9 @@ function renderWarnings(failures) {
 }
 
 function renderResults(data) {
+  activeHistoryId = data.id ?? null;
+  lastResultData = data;
+
   const analysis  = data.analysisResult || {};
   const scoreData = data.scoreData      || { score: 0, label: 'Unknown' };
   const score     = Number.isFinite(scoreData.score) ? scoreData.score : 0;
@@ -427,9 +481,9 @@ function renderResults(data) {
   renderTagList('result-shared',    analysis.dataSharedWith, 'No third parties mentioned.');
   renderRightsList('result-rights', analysis.userRights);
 
-  // Store context for chat (once per scan), reset chat thread
+  // Store context for chat and restore any saved thread for this scan.
   setChatContext({ ...data, modelUsed: data.modelUsed || '' });
-  clearChat();
+  renderStoredChat(data.chatMessages);
 
   showScreen('results');
 }
@@ -472,10 +526,10 @@ async function startAnalysis() {
     if (response.noLinks) { showScreen('no-links'); return; }
 
     // Save to history before rendering
-    lastResultData = response;
-    await historyAppend(response);
+    const savedEntry = await historyAppend(response);
+    lastResultData = savedEntry || response;
 
-    renderResults(response);
+    renderResults(lastResultData);
   } catch (err) {
     stopLoading();
     showError('UNEXPECTED_ERROR', err.message);
@@ -599,6 +653,8 @@ let chatPolicyContext  = '';   // injected once as the first system turn
 let chatDomain         = '';
 let chatModel          = '';   // model that succeeded for this scan session
 let chatContextInjected = false; // ensure we only inject context once per scan
+let chatMessages       = [];
+let chatPersistQueue   = Promise.resolve();
 
 /**
  * Called once after a successful scan. Stores context for the chat session.
@@ -637,9 +693,76 @@ function clearChat() {
   if (msgs) msgs.innerHTML = '';
   $('chat-suggestions')?.classList.remove('hidden');
   chatContextInjected = false;
+  chatMessages = [];
 }
 
-function appendChatMessage(role, text, isGuard = false, modelLabel = '') {
+function appendChatTextWithBold(parent, text) {
+  const value = String(text ?? '');
+  const boldPattern = /\*\*([^*\n]+)\*\*|\*([^*\n]+)\*/g;
+  let cursor = 0;
+  let match;
+
+  while ((match = boldPattern.exec(value)) !== null) {
+    if (match.index > cursor) {
+      parent.appendChild(document.createTextNode(value.slice(cursor, match.index)));
+    }
+
+    const boldText = (match[1] ?? match[2] ?? '').trim();
+    if (boldText) {
+      const strong = document.createElement('strong');
+      strong.textContent = boldText;
+      parent.appendChild(strong);
+    } else {
+      parent.appendChild(document.createTextNode(match[0]));
+    }
+
+    cursor = boldPattern.lastIndex;
+  }
+
+  if (cursor < value.length) {
+    parent.appendChild(document.createTextNode(value.slice(cursor)));
+  }
+}
+
+function queueChatPersist() {
+  if (!activeHistoryId) return;
+  const historyId = activeHistoryId;
+  const snapshot = sanitizeChatMessages(chatMessages);
+  chatPersistQueue = chatPersistQueue
+    .catch(() => {})
+    .then(() => historyUpdateChat(historyId, snapshot))
+    .catch(err => console.error('[TermsLens:chat] Could not save chat history:', err));
+}
+
+function formatChatTranscript(messages) {
+  return sanitizeChatMessages(messages)
+    .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.text}`)
+    .join('\n');
+}
+
+function renderStoredChat(messages) {
+  const stored = sanitizeChatMessages(messages);
+  const msgs = $('chat-messages');
+  if (msgs) msgs.innerHTML = '';
+  chatMessages = [];
+  chatContextInjected = stored.length > 0;
+
+  if (stored.length === 0) {
+    $('chat-suggestions')?.classList.remove('hidden');
+    return;
+  }
+
+  $('chat-suggestions')?.classList.add('hidden');
+  stored.forEach(message => {
+    appendChatMessage(message.role, message.text, message.isGuard, message.modelLabel, {
+      persist: false,
+      ts: message.ts,
+    });
+  });
+  chatMessages = stored;
+}
+
+function appendChatMessage(role, text, isGuard = false, modelLabel = '', options = {}) {
   const msgs = $('chat-messages');
   if (!msgs) return;
 
@@ -650,17 +773,27 @@ function appendChatMessage(role, text, isGuard = false, modelLabel = '') {
 
   const bubble = document.createElement('div');
   bubble.className = 'chat-bubble';
-  bubble.textContent = text;
+  appendChatTextWithBold(bubble, text);
 
   const meta = document.createElement('div');
   meta.className = 'chat-ts';
-  const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const ts = Number.isFinite(options.ts) ? options.ts : Date.now();
+  const timeStr = new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   meta.textContent = modelLabel ? `${timeStr} · ${modelLabel}` : timeStr;
 
   wrapper.appendChild(bubble);
   wrapper.appendChild(meta);
   msgs.appendChild(wrapper);
   msgs.scrollTop = msgs.scrollHeight;
+
+  if (options.persist !== false) {
+    chatMessages = sanitizeChatMessages([
+      ...chatMessages,
+      { role, text: String(text ?? ''), isGuard, modelLabel, ts },
+    ]);
+    queueChatPersist();
+  }
+
   return wrapper;
 }
 
@@ -681,6 +814,16 @@ function appendLoadingBubble() {
   return wrapper;
 }
 
+function getCandidateText(candidate) {
+  const parts = candidate?.content?.parts;
+  if (!Array.isArray(parts)) return '';
+  return parts
+    .map(part => typeof part?.text === 'string' ? part.text : '')
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+}
+
 async function sendChatQuestion(question) {
   if (!question.trim()) return;
   if (!chatPolicyContext) {
@@ -694,6 +837,7 @@ async function sendChatQuestion(question) {
   if (input)   input.value = '';
 
   appendChatMessage('user', question);
+  const previousChatTranscript = formatChatTranscript(chatMessages.slice(0, -1));
   const loadingEl = appendLoadingBubble();
 
   try {
@@ -728,17 +872,20 @@ async function sendChatQuestion(question) {
     }
 
     // ── Build prompt ─────────────────────────────────────────────────────────
-    const systemPart = chatContextInjected
-      ? `You are a plain-English legal assistant answering questions about ${chatDomain || 'a website'}'s privacy policy. Keep answers under 150 words. Be direct and specific.\n\n`
-      : `You are a plain-English legal assistant. Here is the privacy analysis for ${chatDomain || 'a website'}:\n\n${chatPolicyContext}\n\nUse this context to answer questions. Plain English, under 150 words. If a question is unrelated to this policy, politely say you can only answer policy questions.\n\n`;
+    const systemPart = [
+      `You are a plain-English legal assistant answering questions about ${chatDomain || 'a website'}'s privacy policy.`,
+      `Here is the privacy analysis context:\n${chatPolicyContext}`,
+      previousChatTranscript ? `Previous chat:\n${previousChatTranscript}` : '',
+      'Use the policy context and previous chat to answer the current question. Plain English, under 150 words. If a question is unrelated to this policy, politely say you can only answer policy questions.',
+      '',
+    ].filter(Boolean).join('\n\n');
 
     const fullPrompt = `${systemPart}Question: ${question}`;
 
     // Only use models confirmed to work with this API key
     const MODELS = [
-      chatModel || 'gemini-2.0-flash',
-      'gemini-2.0-flash',
       'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
     ].filter((m, i, arr) => arr.indexOf(m) === i);
 
     let answer    = null;
@@ -753,7 +900,7 @@ async function sendChatQuestion(question) {
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({
             contents: [{ parts: [{ text: fullPrompt }] }],
-            generationConfig: { temperature: 0.2, maxOutputTokens: 512 },
+            generationConfig: { temperature: 0.2, maxOutputTokens: 1024 },
           }),
         });
 
@@ -775,7 +922,7 @@ async function sendChatQuestion(question) {
         }
 
         const data = await res.json();
-        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        const text = getCandidateText(data?.candidates?.[0]);
 
         if (!text) {
           const reason = data?.candidates?.[0]?.finishReason || 'empty';
@@ -945,9 +1092,6 @@ async function checkHistorySuggestion() {
 
   newUse?.addEventListener('click', () => {
     renderResults(match);
-    setChatContext(match);
-    clearChat();
-    showScreen('results');
   });
   newFresh?.addEventListener('click', () => {
     suggEl.classList.add('hidden');

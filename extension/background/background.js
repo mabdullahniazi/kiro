@@ -52,6 +52,16 @@ async function getApiKey() {
   );
 }
 
+function getGeminiCandidateText(candidate) {
+  const parts = candidate?.content?.parts;
+  if (!Array.isArray(parts)) return '';
+  return parts
+    .map(part => typeof part?.text === 'string' ? part.text : '')
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+}
+
 async function getActiveTab() {
   return new Promise(resolve =>
     chrome.tabs.query({ active: true, currentWindow: true }, tabs => resolve(tabs[0] || null))
@@ -369,9 +379,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
       // Prefer the model that succeeded during the analysis scan
       const MODELS = [
-        model || 'gemini-2.0-flash',
-        'gemini-2.0-flash',
-        'gemini-1.5-flash',
+        model || 'gemini-2.5-flash',
+        'gemini-2.5-flash',
+        'gemini-2.5-flash-lite',
       ].filter((m, i, arr) => arr.indexOf(m) === i);
 
       // Context is injected once (first message of session); subsequent calls pass null
@@ -392,7 +402,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({
               contents: [{ parts: [{ text: fullPrompt }] }],
-              generationConfig: { temperature: 0.2, maxOutputTokens: 512 },
+              generationConfig: { temperature: 0.2, maxOutputTokens: 1024 },
             }),
             signal: ctrl.signal,
           });
@@ -414,7 +424,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           }
 
           const data = await res.json();
-          const answer = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+          const answer = getGeminiCandidateText(data?.candidates?.[0]);
 
           if (!answer) {
             blog(`Chat: ${tryModel} returned empty answer, trying next`);
