@@ -637,6 +637,47 @@ a:hover { text-decoration: underline; }
 .fetch-warnings > div + div { margin-top: 5px; }
 .fetch-warnings span { color: var(--text-3); word-break: break-all; }
 
+/* ── Collapsible drawers (collect / share / rights / docs) ───────────── */
+.r-drawer {
+  background: var(--white);
+  border-bottom: 1px solid var(--border-soft);
+}
+.r-drawer:last-of-type { border-bottom: none; }
+.r-drawer--meta { background: var(--off-white); }
+
+.r-drawer-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  list-style: none;
+  user-select: none;
+  transition: background var(--transition);
+}
+.r-drawer-title::-webkit-details-marker { display: none; }
+.r-drawer-title:hover { background: var(--surface); }
+.r-drawer-title > span { flex: 1; }
+.r-drawer-title svg:first-child { flex-shrink: 0; }
+.r-drawer-title--muted { opacity: .7; }
+
+.r-drawer-chevron {
+  flex-shrink: 0;
+  color: var(--text-3);
+  transition: transform var(--transition);
+}
+details[open] .r-drawer-chevron { transform: rotate(180deg); }
+
+.r-drawer-body {
+  padding: 4px 16px 16px;
+  border-top: 1px solid var(--border-soft);
+}
+
 .results-footer {
   display: flex;
   justify-content: center;

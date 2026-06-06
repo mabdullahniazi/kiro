@@ -68,9 +68,12 @@ function validateResult(obj) {
     return { ok: false, reason: `Expected object, got ${typeof obj}` };
   }
 
+  // Accept either summaryPoints (new) or summary (old) field
+  const hasSummary = (Array.isArray(obj.summaryPoints) && obj.summaryPoints.length > 0) ||
+                     (typeof obj.summary === 'string' && obj.summary.length > 0);
+
   const checks = [
-    [typeof obj.summary === 'string' && obj.summary.length > 0,
-      `summary must be a non-empty string (got ${typeof obj.summary}: "${String(obj.summary).slice(0,40)}")`],
+    [hasSummary, 'summaryPoints (array) or summary (string) must be present and non-empty'],
     [Array.isArray(obj.dataCollected),
       `dataCollected must be an array (got ${typeof obj.dataCollected})`],
     [Array.isArray(obj.dataSharedWith),
@@ -82,7 +85,7 @@ function validateResult(obj) {
     [typeof obj.score === 'number' && Number.isInteger(obj.score) && obj.score >= 0 && obj.score <= 10,
       `score must be integer 0–10 (got ${typeof obj.score}: ${obj.score})`],
     [typeof obj.recommendation === 'string' && obj.recommendation.length > 0,
-      `recommendation must be a non-empty string (got ${typeof obj.recommendation}: "${String(obj.recommendation).slice(0,40)}")`],
+      `recommendation must be a non-empty string`],
   ];
 
   const failures = checks.filter(([pass]) => !pass).map(([, msg]) => msg);
@@ -92,7 +95,12 @@ function validateResult(obj) {
     return { ok: false, reason: failures.join('; ') };
   }
 
-  glog('Validation passed ✅');
+  // Normalize: always produce a `summary` string from summaryPoints if needed
+  if (!obj.summary && Array.isArray(obj.summaryPoints)) {
+    obj.summary = obj.summaryPoints.join('\n');
+  }
+
+  glog('Validation passed');
   return { ok: true };
 }
 

@@ -386,24 +386,39 @@ function renderResults(data) {
   renderDocs(data.linksFound);
   renderWarnings(data.failures);
 
-  // Render summary as bullet points (prompt uses \n to separate points)
+  // Render summary — prefer summaryPoints array, fall back to summary string
   const summaryEl = $('result-summary');
   if (summaryEl) {
     summaryEl.innerHTML = '';
-    const raw = analysis.summary || 'No summary was returned.';
-    const lines = raw.split(/\n+/).map(l => l.trim()).filter(Boolean);
-    if (lines.length <= 1) {
-      summaryEl.textContent = raw;
-    } else {
+    const points = Array.isArray(analysis.summaryPoints) && analysis.summaryPoints.length > 0
+      ? analysis.summaryPoints
+      : null;
+
+    if (points) {
       const ul = document.createElement('ul');
       ul.className = 'summary-list';
-      lines.forEach(line => {
+      points.forEach(line => {
         const li = document.createElement('li');
-        // Strip leading number/bullet if present e.g. "1)" or "•"
-        li.textContent = line.replace(/^[\d]+[.)]\s*/, '').replace(/^[•\-]\s*/, '');
+        li.textContent = String(line).replace(/^[\d]+[.)]\s*/, '').replace(/^[•\-]\s*/, '').trim();
         ul.appendChild(li);
       });
       summaryEl.appendChild(ul);
+    } else {
+      // Fall back to plain string, split on newlines
+      const raw = analysis.summary || 'No summary was returned.';
+      const lines = raw.split(/\n+/).map(l => l.trim()).filter(Boolean);
+      if (lines.length <= 1) {
+        summaryEl.textContent = raw;
+      } else {
+        const ul = document.createElement('ul');
+        ul.className = 'summary-list';
+        lines.forEach(line => {
+          const li = document.createElement('li');
+          li.textContent = line.replace(/^[\d]+[.)]\s*/, '').replace(/^[•\-]\s*/, '').trim();
+          ul.appendChild(li);
+        });
+        summaryEl.appendChild(ul);
+      }
     }
   }
 
