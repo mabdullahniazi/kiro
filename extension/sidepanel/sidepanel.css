@@ -36,9 +36,10 @@ html, body {
   color: var(--text);
   font: 14px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
-body { overflow-y: auto; min-width: 300px; }
+body { overflow-y: auto; min-width: 280px; max-width: 100%; }
 button, input { font: inherit; }
 a { color: var(--blue); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -109,7 +110,7 @@ a:hover { text-decoration: underline; }
 #screen-settings { padding: 0; }
 
 /* ── Setup ─────────────────────────────────────────────────────────── */
-.setup-wrap { max-width: 480px; margin: 0 auto; }
+.setup-wrap { max-width: 100%; margin: 0 auto; }
 
 .setup-badge {
   display: inline-flex;
@@ -215,7 +216,7 @@ a:hover { text-decoration: underline; }
 }
 
 /* ── Idle ──────────────────────────────────────────────────────────── */
-.idle-wrap { max-width: 480px; margin: 0 auto; }
+.idle-wrap { max-width: 100%; margin: 0 auto; }
 
 .idle-site-card {
   display: flex;
@@ -260,7 +261,7 @@ a:hover { text-decoration: underline; }
 .feature-icon { flex-shrink: 0; display: flex; }
 
 /* ── Loading ────────────────────────────────────────────────────────── */
-.loading-wrap { max-width: 440px; margin: 0 auto; text-align: center; }
+.loading-wrap { max-width: 100%; margin: 0 auto; text-align: center; }
 
 .spinner-ring {
   width: 48px;
@@ -434,8 +435,13 @@ a:hover { text-decoration: underline; }
 .r-section--action { background: var(--blue-light); border-bottom: 1px solid var(--blue-mid); }
 .r-section--meta   { background: var(--off-white); }
 
-.r-section--two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
-.two-col-block { min-width: 0; }
+/* Collect/Share: always single column — pills wrap naturally */
+.r-section--two-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.two-col-block { min-width: 0; width: 100%; }
 
 .section-intro { font-size: 12.5px; color: var(--text-3); margin-bottom: 10px; line-height: 1.5; }
 
@@ -464,6 +470,8 @@ a:hover { text-decoration: underline; }
   border-radius: 99px;
   font-size: 12px;
   color: var(--text-2);
+  word-break: break-word;
+  max-width: 100%;
 }
 
 /* Rights */
@@ -963,8 +971,50 @@ a:hover { text-decoration: underline; }
 .r-title svg, .setup-badge svg, .privacy-note svg, .domain-row svg { flex-shrink: 0; }
 
 /* ── Responsive ─────────────────────────────────────────────────────── */
-@media (max-width: 400px) {
+
+/* Narrow panel — Chrome side panel can be as narrow as 280px */
+@media (max-width: 420px) {
+  /* Setup: stack key input vertically */
   .key-input-row      { flex-direction: column; }
-  .score-row          { flex-direction: column; align-items: flex-start; }
-  .r-section--two-col { grid-template-columns: 1fr; }
+  .key-input-row .btn { width: 100%; }
+
+  /* Idle: stack score row */
+  .score-row { flex-direction: column; align-items: flex-start; }
+
+  /* Settings: stack action buttons */
+  .settings-actions { flex-direction: column; }
+  .settings-actions .btn,
+  .settings-actions .btn-danger-outline { width: 100%; }
+
+  /* Settings: stack input row */
+  .settings-input-row { flex-direction: column; }
+  .settings-vis-btn   { width: 100%; height: 40px; }
+
+  /* History: smaller badge */
+  .history-score-badge { width: 36px; height: 36px; font-size: 14px; }
 }
+
+/* Very narrow — below 320px (rare but possible) */
+@media (max-width: 320px) {
+  .header { padding: 10px 12px; }
+  .screen { padding: 16px 12px; }
+  .settings-body { padding: 12px; }
+  .results-hero  { padding: 12px; }
+  .r-section     { padding: 12px; }
+  .step-row { grid-template-columns: 18px 1fr; }
+  .score-ring { width: 60px; height: 60px; }
+  .score-num  { font-size: 22px; }
+}
+
+/* Ensure body never clips content horizontally */
+body { min-width: 280px; }
+
+/* Prevent any element from overflowing container */
+img, svg { max-width: 100%; }
+
+.domain-text,
+.site-host,
+.history-domain { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+
+/* Ensure two-col never shrinks below usable size */
+.r-section--two-col .two-col-block { min-width: 0; overflow: hidden; }
