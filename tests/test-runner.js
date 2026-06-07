@@ -15,9 +15,9 @@ const assert = require('assert');
 const https = require('https');
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Config — update API key here if you have a valid one
+// Config
 // ─────────────────────────────────────────────────────────────────────────────
-const API_KEY = process.env.GEMINI_API_KEY || 'REDACTED_GEMINI_API_KEY';
+const API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 const TEST_URL = 'https://www.shopify.com/legal/terms';
@@ -678,6 +678,11 @@ async function suite4() {
         throw new Error('Skipping — Shopify text not available from Step 4.1');
       }
 
+      if (!API_KEY) {
+        console.log(`     ℹ️  Skipping live Gemini test — set GEMINI_API_KEY in your environment`);
+        return;
+      }
+
       const prompt = `You are a legal analyst specializing in privacy law. Analyze the following Terms of Service text and respond with ONLY a valid JSON object — no markdown, no code fences, just raw JSON.
 
 The JSON must match this exact schema:
@@ -717,7 +722,7 @@ ${shopifyText.slice(0, 25000)}
           const errBody = JSON.parse(body);
           const msg = errBody?.error?.message || body;
           console.log(`     ⚠️  API key issue: ${msg}`);
-          console.log(`     ℹ️  To run live Gemini tests, set GEMINI_API_KEY env var or update API_KEY in this file`);
+          console.log(`     ℹ️  To run live Gemini tests, set GEMINI_API_KEY in your environment`);
           console.log(`     ℹ️  Get a free key at: https://aistudio.google.com`);
           // Don't fail the test — just report the issue
           return;
