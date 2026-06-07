@@ -6,7 +6,7 @@
 const TAG   = '[TermsLens:gemini]';
 const glog  = (...a) => console.log(TAG, ...a);
 const gwarn = (...a) => console.warn(TAG, '⚠️', ...a);
-const gerr  = (...a) => console.error(TAG, '❌', ...a);
+// const gerr  = (...a) => console.error(TAG, '❌', ...a);
 
 const GEMINI_API_BASE   = 'https://generativelanguage.googleapis.com/v1beta/models';
 const GEMINI_MODELS     = [
